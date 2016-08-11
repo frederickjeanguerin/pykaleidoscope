@@ -9,6 +9,7 @@ class TokenKind(Enum):
     IDENTIFIER = -4
     NUMBER = -5
     OPERATOR = -6
+    
     # Keywords are less than -100
     DEF = -101
     EXTERN = -102
@@ -17,6 +18,8 @@ class TokenKind(Enum):
     ELSE = -105
     FOR = -106
     IN = -107
+    BINARY = -108
+    UNARY = -109
 
 
 Token = namedtuple('Token', 'kind value')

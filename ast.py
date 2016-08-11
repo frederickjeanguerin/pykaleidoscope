@@ -27,6 +27,13 @@ class Variable(Expr):
     def flatten(self):
         return [self.__class__.__name__, self.name]            
 
+class Unary(Expr):
+    def __init__(self, op, rhs):
+        self.op = op
+        self.rhs = rhs
+
+    def flatten(self):
+        return [self.__class__.__name__, self.op, self.rhs.flatten()]  
 
 class Binary(Expr):
     def __init__(self, op, lhs, rhs):
@@ -69,16 +76,30 @@ class For(Expr):
             self.id_name, 
             self.start_expr.flatten(), 
             self.end_expr.flatten(),
-            self.step_expr.flatten(),
+            self.step_expr.flatten() if self.step_expr else ["No step"],
             self.body.flatten()
         ]    
 
 _ANONYMOUS = "_ANONYMOUS."
 
+DEFAULT_PREC = 30
+
 class Prototype(Node):
-    def __init__(self, name, argnames):
+    def __init__(self, name, argnames, isoperator=False, prec=DEFAULT_PREC):
         self.name = name
         self.argnames = argnames
+        self.isoperator = isoperator
+        self.prec = prec
+
+    def is_unary_op(self):
+        return self.isoperator and len(self.argnames) == 1
+
+    def is_binary_op(self):
+        return self.isoperator and len(self.argnames) == 2
+
+    def get_op_name(self):
+        assert self.isoperator
+        return self.name[-1]
 
     _anonymous_count = 0
 
@@ -91,8 +112,11 @@ class Prototype(Node):
         return self.name.startswith(_ANONYMOUS)    
 
     def flatten(self):
-        return [self.__class__.__name__, self.name, '(' + ' '.join(self.argnames) + ')']    
-
+        flattened = [self.__class__.__name__, self.name, '(' + ' '.join(self.argnames) + ')']
+        if self.prec != DEFAULT_PREC:
+            return flattened + [self.prec]
+        else :
+            return flattened       
 
 class Function(Node):
     def __init__(self, proto, body):
@@ -130,33 +154,5 @@ def dump(flattened, indent=0):
 
 if __name__ == '__main__':
 
-    num = Number(100)
-    var = Variable('var')
-    bin1 = Binary("+", num, var)
-    bin2 = Binary("*", bin1, bin1)
-    call1 = Call('add', [num, var])
-    call2 = Call('max', [call1, bin1])
-    proto1 = Prototype('add', ['x', 'y'])
-    proto2 = Prototype.Anonymous()
-    fun = Function(proto1, Binary('+', Variable("x"), Variable('y')))
-    if1 = If(Number(0), Number(1), Number(2))
-    for1 = For('i', Number(0.0), Number(10.0), Number(1.0), Call("print", [Variable('i')]))
+    print("Run the parsing module to test the AST stuff!")    
 
-    data = [
-        num, 
-        var, 
-        bin1, 
-        bin2, 
-        call1, 
-        call2, 
-        proto1,
-        proto2, 
-        fun,
-        if1,
-        for1,
-        num]
-
-    for elem in data:
-        print(elem.flatten())
-        print(elem.dump())
-        print()

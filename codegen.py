@@ -2,6 +2,11 @@ from ast import *
 import llvmlite.ir as ir
 import llvmlite.binding as llvm
 
+
+def irdouble(pyval):
+    """Converts a python value into an IR double constant value"""
+    return ir.Constant(ir.DoubleType(), pyval)
+
 class CodegenError(Exception): pass
 
 class LLVMCodeGenerator(object):
@@ -36,32 +41,41 @@ class LLVMCodeGenerator(object):
         return getattr(self, method)(node)
 
     def _codegen_Number(self, node):
-        return ir.Constant(ir.DoubleType(), float(node.val))
+        return irdouble(float(node.val))
 
     def _codegen_Variable(self, node):
-        return self.func_symtab[node.name]
+        try:
+            return self.func_symtab[node.name]
+        except KeyError:
+            raise CodegenError("Undefined variable: " + node.name)    
 
     def _codegen_Binary(self, node):
         lhs = self._codegen(node.lhs)
         rhs = self._codegen(node.rhs)
 
         if node.op == '+':
-            return self.builder.fadd(lhs, rhs, 'addtmp')
+            return self.builder.fadd(lhs, rhs, 'addop')
         elif node.op == '-':
-            return self.builder.fsub(lhs, rhs, 'subtmp')
+            return self.builder.fsub(lhs, rhs, 'subop')
         elif node.op == '*':
-            return self.builder.fmul(lhs, rhs, 'multmp')
+            return self.builder.fmul(lhs, rhs, 'multop')
         elif node.op == '<':
-            cmp = self.builder.fcmp_unordered('<', lhs, rhs, 'cmptmp')
-            return self.builder.uitofp(cmp, ir.DoubleType(), 'booltmp')
+            cmp = self.builder.fcmp_unordered('<', lhs, rhs, 'ltop')
+            return self.builder.uitofp(cmp, ir.DoubleType(), 'ltoptodouble')
         else:
-            raise CodegenError('Unknown binary operator', node.op)
+            # Note one of the predefined operators, so it must be a user-defined one.
+            # Emit a call to it.
+            func = self.module.get_global('binary{0}'.format(node.op))
+            if func is None:
+                raise CodegenError('Unknown binary operator', node.op)
+            return self.builder.call(func, [lhs, rhs], 'userbinop')    
+
 
     def _codegen_If(self, node):
         # Emit comparison value
         cond_val = self._codegen(node.cond_expr)
         cmp = self.builder.fcmp_ordered(
-            '!=', cond_val, ir.Constant(ir.DoubleType(), 0.0), 'notnull')
+            '!=', cond_val, irdouble(0.0), 'notnull')
 
         # Create basic blocks to express the control flow
         then_bb = ir.Block(self.builder.function, 'then')
@@ -88,7 +102,7 @@ class LLVMCodeGenerator(object):
         self.builder.branch(merge_bb)
         else_bb = self.builder.block
 
-        # Emit the merge ('ifcnt') block
+        # Emit the merge block
         self.builder.function.basic_blocks.append(merge_bb)
         self.builder.position_at_start(merge_bb)
         phi = self.builder.phi(ir.DoubleType(), 'ifval')
@@ -159,9 +173,7 @@ class LLVMCodeGenerator(object):
 
         # Compute the end condition
         endcond = self._codegen(node.end_expr)
-        cmp = self.builder.fcmp_ordered(
-            '!=', endcond, ir.Constant(ir.DoubleType(), 0.0),
-            'loopcond')
+        cmp = self.builder.fcmp_ordered( '!=', endcond, irdouble(0.0), 'loopcond')
 
         # Goto body if condition satisfied, otherwise, exit.
         self.builder.cbranch(cmp, loopbody_bb, loopafter_bb)
@@ -201,6 +213,7 @@ class LLVMCodeGenerator(object):
         # The 'for' expression returns the last value of the counter
         return phi
 
+
     def _codegen_Call(self, node):
         callee_func = self.module.globals.get(node.callee, None)
         if callee_func is None or not isinstance(callee_func, ir.Function):
@@ -209,6 +222,7 @@ class LLVMCodeGenerator(object):
             raise CodegenError('Call argument length mismatch', node.callee)
         call_args = [self._codegen(arg) for arg in node.args]
         return self.builder.call(callee_func, call_args, 'calltmp')
+
 
     def _codegen_Prototype(self, node):
         funcname = node.name
@@ -250,26 +264,14 @@ class LLVMCodeGenerator(object):
         self.builder.ret(retval)
         return func
 
+    def _codegen_Unary(self, node):
+        operand = self._codegen(node.rhs)
+        func = self.module.get_global('unary{0}'.format(node.op))
+        if not func:
+            raise CodegenError("Undefined unary operator: " + node.op)
+        return self.builder.call(func, [operand], 'unop')
 
 if __name__ == '__main__':
-    import sys
-    from parsing import *
-    programs = [
-        'def add(a b) a + b',
-        'def max(a b) if a < b then b else a',
-        'def looping(a b) for i = a, i < b, i + 1 in print(i)'
-    ]
-    if len(sys.argv) > 1 :
-        programs = [' '.join(sys.argv[1:])]
-    for program in programs:    
-        print("\nPROGRAM: ", program)        
-        ast = Parser().parse_toplevel(program)
 
-        print("\nAST:\n", ast.dump())
-
-        codegen = LLVMCodeGenerator()
-        codegen.generate_code(ast)
-
-        print('\nLLVM IR (unoptimized) :')
-        print(str(codegen.module))
-        print('\n')
+    import run
+    run.repl(noexec = True) 

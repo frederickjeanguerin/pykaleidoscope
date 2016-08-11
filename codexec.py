@@ -23,55 +23,76 @@ class KaleidoscopeEvaluator(object):
         self._add_builtins(self.codegen.module)
         self.target = llvm.Target.from_default_triple()
 
-    def evaluate(self, codestr, optimize=True, llvmdump=False):
+    def evaluate(self, codestr, optimize=True, llvmdump=False, noexec = False, parseonly = False):
+        return next(self.eval_generator(codestr, optimize, llvmdump, noexec, parseonly))
+
+    def eval_generator(self, codestr, optimize=True, llvmdump=False, noexec = False, parseonly = False):
         """Evaluate code in codestr.
         Returns None for definitions and externs, and the evaluated expression
         value for toplevel expressions.
+
+        optimize: activate optimization
+
+        llvmdump: generated code will be dumped prior to execution.
+
+        noexec: the code will be generated but not executed.
+
+        parseonly: the code will only be parsed
+        
         """
-        # Parse the given code and generate code from it
-        ast = Parser().parse_toplevel(codestr)
-        self.codegen.generate_code(ast)
+        # Parse the given code 
+        for ast in Parser().parse_generator(codestr):
+            if parseonly:
+                yield ast.dump()
+                continue
 
-        if llvmdump: 
-            dump(str(self.codegen.module), '__dump__unoptimized.ll')
+            # Generate code
+            self.codegen.generate_code(ast)
+            if noexec:
+                yield str(self.codegen.module).split('\n\n')[-1]
+                continue
 
-        # If we're evaluating a definition or extern declaration, don't do
-        # anything else. If we're evaluating an anonymous wrapper for a toplevel
-        # expression, JIT-compile the module and run the function to get its
-        # result.
-        if not (isinstance(ast, Function) and ast.is_anonymous()):
-            return None
+            if llvmdump: 
+                dump(str(self.codegen.module), '__dump__unoptimized.ll')
 
-        # Convert LLVM IR into in-memory representation
-        llvmmod = llvm.parse_assembly(str(self.codegen.module))
-        llvmmod.verify()
+            # If we're evaluating a definition or extern declaration, don't do
+            # anything else. If we're evaluating an anonymous wrapper for a toplevel
+            # expression, JIT-compile the module and run the function to get its
+            # result.
+            if not (isinstance(ast, Function) and ast.is_anonymous()):
+                yield None
+                continue
 
-        # Optimize the module
-        if optimize:
-            pmb = llvm.create_pass_manager_builder()
-            pmb.opt_level = 2
-            pm = llvm.create_module_pass_manager()
-            pmb.populate(pm)
-            pm.run(llvmmod)
+            # Convert LLVM IR into in-memory representation
+            llvmmod = llvm.parse_assembly(str(self.codegen.module))
+            llvmmod.verify()
 
-            if llvmdump:
-                dump(str(llvmmod), '__dump__optimized.ll')
+            # Optimize the module
+            if optimize:
+                pmb = llvm.create_pass_manager_builder()
+                pmb.opt_level = 2
+                pm = llvm.create_module_pass_manager()
+                pmb.populate(pm)
+                pm.run(llvmmod)
 
-        # Create a MCJIT execution engine to JIT-compile the module. Note that
-        # ee takes ownership of target_machine, so it has to be recreated anew
-        # each time we call create_mcjit_compiler.
-        target_machine = self.target.create_target_machine()
-        with llvm.create_mcjit_compiler(llvmmod, target_machine) as ee:
-            ee.finalize_object()
+                if llvmdump:
+                    dump(str(llvmmod), '__dump__optimized.ll')
 
-            if llvmdump:
-                dump(target_machine.emit_assembly(llvmmod), '__dump__assembler.asm')
-                print(colored("Code dumped in local directory", 'yellow'))
+            # Create a MCJIT execution engine to JIT-compile the module. Note that
+            # ee takes ownership of target_machine, so it has to be recreated anew
+            # each time we call create_mcjit_compiler.
+            target_machine = self.target.create_target_machine()
+            with llvm.create_mcjit_compiler(llvmmod, target_machine) as ee:
+                ee.finalize_object()
 
-            fptr = CFUNCTYPE(c_double)(ee.get_function_address(ast.proto.name))
+                if llvmdump:
+                    dump(target_machine.emit_assembly(llvmmod), '__dump__assembler.asm')
+                    print(colored("Code dumped in local directory", 'yellow'))
 
-            result = fptr()
-            return result
+                fptr = CFUNCTYPE(c_double)(ee.get_function_address(ast.proto.name))
+
+                result = fptr()
+                yield result
 
     def _add_builtins(self, module):
         # The C++ tutorial adds putchard() simply by defining it in the host C++
@@ -164,60 +185,31 @@ class TestEvaluator(unittest.TestCase):
         self.assertEqual(e.evaluate('oddlessthan(1000)'), 1001)
         self.assertEqual(e.evaluate('oddlessthan(0)'), 1)
 
+    def test_custom_binop(self):
+        e = KaleidoscopeEvaluator()
+        e.evaluate('def binary %(a b) a - b')
+        self.assertEqual(e.evaluate('10 % 5'), 5)
+        self.assertEqual(e.evaluate('100 % 5.5'), 94.5)
+
+    def test_custom_unop(self):
+        e = KaleidoscopeEvaluator()
+        e.evaluate('def unary!(a) 0 - a')
+        e.evaluate('def unary^(a) a * a')
+        self.assertEqual(e.evaluate('!10'), -10)
+        self.assertEqual(e.evaluate('^10'), 100)
+        self.assertEqual(e.evaluate('!^10'), -100)
+        self.assertEqual(e.evaluate('^!10'), 100)
+
+    def test_mixed_ops(self):
+        e = KaleidoscopeEvaluator()
+        e.evaluate('def unary!(a) 0 - a')
+        e.evaluate('def unary^(a) a * a')
+        e.evaluate('def binary %(a b) a - b')
+        self.assertEqual(e.evaluate('!10 % !20'), 10)
+        self.assertEqual(e.evaluate('^(!10 % !20)'), 100)
+
 
 if __name__ == '__main__':
 
-    import sys
-    import colorama
-    from termcolor import colored
-    colorama.init()
-    k = KaleidoscopeEvaluator()
-
-    def print_eval(command, options = dict()):
-        try:
-            print(colored(k.evaluate(command, **options), 'green'))
-        except ParseError as err:
-            print(colored('Parse error: ' + str(err), "red"))                    
-        except CodegenError as err:
-            print(colored('Eval error: ' + str(err), 'red'))
-        except RuntimeError as err:
-            print(colored('Eval error: ' + str(err), 'red'))
-                
-
-    commands = [
-        'def add(a b) a + b',
-        'add(1, 2)',
-        'add(add(1,2), add(3,4))',
-        'def max(a b) if a < b then b else a',
-        'max(1,2)',        
-        'max(max(1,2), max(3,4))',
-        'def factorial(n) if n < 2 then 1 else n * factorial(n-1)',
-        'factorial(5)',
-        'def alphabet(a b) ( for x = 64 + a, x < 64 + b + 1 in putchard(x) ) - 64',
-        'alphabet(1,26)'        
-    ]
-
-    if len(sys.argv) >= 2 :
-        print_eval(' '.join(sys.argv[1:]))
-
-    else :
-        # Execute all predefined commands
-        for command in commands:
-            print('K>', command)
-            print_eval(command)
-
-        # Then enter a simple REPL loop
-        print(colored('Type exit or quit to stop the program', 'yellow'))
-        options = {
-            'optimize' : True,
-            'llvmdump' : False
-        }
-        command = ""
-        while not command in ['exit', 'quit']:
-            if command in options:
-                options[command] = not options[command]
-                print(command, '=', options[command])
-            elif command :  
-                print_eval(command, options)
-            print("K> ", end="")
-            command = input().strip()
+    import run
+    run.repl()

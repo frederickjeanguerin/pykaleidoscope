@@ -14,22 +14,23 @@ class Parser(object):
         self.token_generator = None
         self.cur_tok = None
 
-    # toplevel ::= definition | external | expression | ';'
+    # toplevel ::= definition | external | expression
     def parse_toplevel(self, buf):
+        return next(self.parse_generator(buf))
+
+    def parse_generator(self, buf):
         """Given a string, returns an AST node representing it."""
         self.token_generator = Lexer(buf).tokens()
         self.cur_tok = None
         self._get_next_token()
 
-        if self.cur_tok.kind == TokenKind.EXTERN:
-            return self._parse_external()
-        elif self.cur_tok.kind == TokenKind.DEF:
-            return self._parse_definition()
-        elif self._cur_tok_is_operator(';'):
-            self._get_next_token()
-            return None
-        else:
-            return self._parse_toplevel_expression()
+        while self.cur_tok.kind != TokenKind.EOF:
+            if self.cur_tok.kind == TokenKind.EXTERN:
+                yield self._parse_external()
+            elif self.cur_tok.kind == TokenKind.DEF:
+                yield self._parse_definition()
+            else:
+                yield self._parse_toplevel_expression()
 
     def _get_next_token(self):
         self.cur_tok = next(self.token_generator)
@@ -49,9 +50,12 @@ class Parser(object):
 
     def _cur_tok_precedence(self):
         """Get the operator precedence of the current token."""
+        kind, value = self.cur_tok
         try:
-            return Parser._precedence_map[self.cur_tok.value]
+            return Parser._precedence_map[value]
         except KeyError:
+            if kind == TokenKind.OPERATOR and value not in Parser.PUNCTUATORS:
+                raise ParseError("Undefined operator: " + value)
             return -1
 
     def _cur_tok_is_operator(self, op):
@@ -100,6 +104,10 @@ class Parser(object):
     #   ::= parenexpr
     #   ::= ifexpr
     #   ::= forexpr
+    #   ::= unaryexpr
+
+    PUNCTUATORS = '()[]{};,:'
+
     def _parse_primary(self):
         if self.cur_tok.kind == TokenKind.IDENTIFIER:
             return self._parse_identifier_expr()
@@ -111,8 +119,14 @@ class Parser(object):
             return self._parse_if_expr()
         elif self.cur_tok.kind == TokenKind.FOR:
             return self._parse_for_expr()
+        elif self.cur_tok.kind == TokenKind.OPERATOR:
+            if self.cur_tok.value in Parser.PUNCTUATORS :
+                raise ParseError('Expression expected but met with: ' + self.cur_tok.value)
+            return self._parse_unaryop_expr()
+        elif self.cur_tok.kind == TokenKind.EOF:
+            raise ParseError('Expression expected but reached end of code')            
         else:
-            raise ParseError('Unknown token when expecting an expression')
+            raise ParseError('Expression expected but met unknown token', self.cur_tok)
 
     # ifexpr ::= 'if' expression 'then' expression 'else' expression
     def _parse_if_expr(self):
@@ -183,17 +197,60 @@ class Parser(object):
         # expression at this point.
         return self._parse_binop_rhs(0, lhs)
 
-    # prototype ::= id '(' id* ')'
+    # unary ::= op primary    
+    def _parse_unaryop_expr(self):   
+        op = self.cur_tok.value
+        self._get_next_token()
+        rhs = self._parse_primary()
+        return Unary(op, rhs) 
+
+    # prototype
+    #   ::= id '(' id* ')'
+    #   ::= 'binary' LETTER number? '(' id id ')'
+    #   ::= 'unary' LETTER '(' id id ')'    
     def _parse_prototype(self):
-        name = self.cur_tok.value
-        self._match(TokenKind.IDENTIFIER)
+        prec = DEFAULT_PREC 
+        if self.cur_tok.kind == TokenKind.IDENTIFIER:
+            name = self.cur_tok.value
+            self._get_next_token()
+        elif self.cur_tok.kind == TokenKind.UNARY:
+            self._get_next_token()
+            if self.cur_tok.kind != TokenKind.OPERATOR:
+                raise ParseError('Expected operator after "unary"')
+            name = 'unary{0}'.format(self.cur_tok.value)
+            self._get_next_token()
+        elif self.cur_tok.kind == TokenKind.BINARY:
+            self._get_next_token()
+            if self.cur_tok.kind != TokenKind.OPERATOR:
+                raise ParseError('Expected operator after "binary"')
+            name = 'binary{0}'.format(self.cur_tok.value)
+            self._get_next_token()
+
+            # Try to parse precedence
+            if self.cur_tok.kind == TokenKind.NUMBER:
+                prec = int(self.cur_tok.value)
+                if not (0 < prec < 101):
+                    raise ParseError('Invalid precedence', prec)
+                self._get_next_token()
+
+            # Add the new operator to our precedence table so we can properly
+            # parse it.
+            self._precedence_map[name[-1]] = prec
+
         self._match(TokenKind.OPERATOR, '(')
         argnames = []
         while self.cur_tok.kind == TokenKind.IDENTIFIER:
             argnames.append(self.cur_tok.value)
             self._get_next_token()
         self._match(TokenKind.OPERATOR, ')')
-        return Prototype(name, argnames)
+
+        if name.startswith('binary') and len(argnames) != 2:
+            raise ParseError('Expected binary operator to have 2 operands')
+        elif name.startswith('unary') and len(argnames) != 1:
+            raise ParseError('Expected unary operator to have one operand')
+
+        return Prototype(
+            name, argnames, name.startswith(('unary', 'binary')), prec)
 
     # external ::= 'extern' prototype
     def _parse_external(self):
@@ -277,20 +334,63 @@ class TestParser(unittest.TestCase):
                     ['Number', '1'],
                     ['Call', 'bar', [['Variable', 'x']]]]])
 
+    def test_unary(self):
+        p = Parser()
+        ast = p.parse_toplevel('def unary!(x) 0 - x')
+        self.assertIsInstance(ast, Function)
+        proto = ast.proto
+        self.assertIsInstance(proto, Prototype)
+        self.assertTrue(proto.isoperator)
+        self.assertEqual(proto.name, 'unary!')
+
+        ast = p.parse_toplevel('!a + !b - !!c')
+        self._assert_body(ast,
+            ['Binary', '-',
+                ['Binary', '+',
+                    ['Unary', '!', ['Variable', 'a']],
+                    ['Unary', '!', ['Variable', 'b']]],
+                ['Unary', '!', ['Unary', '!', ['Variable', 'c']]]])
+
+    def test_binary_op_no_prec(self):
+        ast = Parser().parse_toplevel('def binary $(a b) a + b')
+        self.assertIsInstance(ast, Function)
+        proto = ast.proto
+        self.assertIsInstance(proto, Prototype)
+        self.assertTrue(proto.isoperator)
+        self.assertEqual(proto.prec, DEFAULT_PREC)
+        self.assertEqual(proto.name, 'binary$')
+
+    def test_binary_op_with_prec(self):
+        ast = Parser().parse_toplevel('def binary% 77(a b) a + b')
+        self.assertIsInstance(ast, Function)
+        proto = ast.proto
+        self.assertIsInstance(proto, Prototype)
+        self.assertTrue(proto.isoperator)
+        self.assertEqual(proto.prec, 77)
+        self.assertEqual(proto.name, 'binary%')
+
+    def test_binop_relative_precedence(self):
+        # with precedence 77, % binds stronger than all existing ops
+        p = Parser()
+        p.parse_toplevel('def binary% 77(a b) a + b')
+        ast = p.parse_toplevel('a * 10 % 5 * 10')
+        self._assert_body(ast,
+            ['Binary', '*',
+                ['Binary', '*',
+                    ['Variable', 'a'],
+                    ['Binary', '%', ['Number', '10'], ['Number', '5']]],
+                ['Number', '10']])
+
+        ast = p.parse_toplevel('a % 20 * 5')
+        self._assert_body(ast,
+            ['Binary', '*',
+                ['Binary', '%', ['Variable', 'a'], ['Number', '20']],
+                ['Number', '5']])
+
+
 #---- Typical example use ----#
 
 if __name__ == '__main__':
-    import sys
-    programs = [
-        'def bina(a b) a + b',
-        'def max(a b) if a < b then b else a',
-        'def print(a b) for i = a, b, 1 in print(i)'
-    ]
-    if len(sys.argv) > 1 :
-        programs = [' '.join(sys.argv[1:])]
-    p = Parser()
-    for program in programs:    
-        print("\nPROGRAM: ", program)    
-        print("\nAST: ")    
-        print(p.parse_toplevel(program).dump())
-        print()
+
+    import run
+    run.repl(parseonly = True) 
