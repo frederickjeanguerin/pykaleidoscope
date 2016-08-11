@@ -1,3 +1,5 @@
+from collections import namedtuple
+
 # AST hierarchy
 
 class Node(object):
@@ -9,7 +11,6 @@ class Node(object):
 
 class Expr(Node):
     pass
-
 
 class Number(Expr):
     def __init__(self, val):
@@ -43,6 +44,34 @@ class Call(Expr):
 
     def flatten(self):
         return [self.__class__.__name__, self.callee, [arg.flatten() for arg in self.args] ]    
+
+class If(Expr):
+    def __init__(self, cond_expr, then_expr, else_expr):
+        self.cond_expr = cond_expr
+        self.then_expr = then_expr
+        self.else_expr = else_expr
+
+    def flatten(self):
+        return [self.__class__.__name__, self.cond_expr.flatten(), self.then_expr.flatten(), self.else_expr.flatten() ]    
+
+
+class For(Expr):
+    def __init__(self, id_name, start_expr, end_expr, step_expr, body):
+        self.id_name = id_name
+        self.start_expr = start_expr
+        self.end_expr = end_expr
+        self.step_expr = step_expr
+        self.body = body
+
+    def flatten(self):
+        return [
+            self.__class__.__name__, 
+            self.id_name, 
+            self.start_expr.flatten(), 
+            self.end_expr.flatten(),
+            self.step_expr.flatten(),
+            self.body.flatten()
+        ]    
 
 _ANONYMOUS = "_ANONYMOUS."
 
@@ -110,6 +139,8 @@ if __name__ == '__main__':
     proto1 = Prototype('add', ['x', 'y'])
     proto2 = Prototype.Anonymous()
     fun = Function(proto1, Binary('+', Variable("x"), Variable('y')))
+    if1 = If(Number(0), Number(1), Number(2))
+    for1 = For('i', Number(0.0), Number(10.0), Number(1.0), Call("print", [Variable('i')]))
 
     data = [
         num, 
@@ -121,6 +152,8 @@ if __name__ == '__main__':
         proto1,
         proto2, 
         fun,
+        if1,
+        for1,
         num]
 
     for elem in data:

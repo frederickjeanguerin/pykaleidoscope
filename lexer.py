@@ -1,19 +1,34 @@
-from enum import Enum
+from enum import * 
 from collections import namedtuple
 
 # Each token is a tuple of kind and value. kind is one of the enumeration values
 # in TokenKind. value is the textual value of the token in the input.
+@unique
 class TokenKind(Enum):
     EOF = -1
-    DEF = -2
-    EXTERN = -3
     IDENTIFIER = -4
     NUMBER = -5
     OPERATOR = -6
+    # Keywords are less than -100
+    DEF = -101
+    EXTERN = -102
+    IF = -103
+    THEN = -104
+    ELSE = -105
+    FOR = -106
+    IN = -107
 
 
 Token = namedtuple('Token', 'kind value')
 
+def get_keyword(name):
+    try:
+        kind = TokenKind[name.upper()]
+        if kind.value < -100: 
+            return kind
+    except KeyError:
+        pass
+    return None    
 
 class Lexer(object):
     """Lexer for Kaleidoscope.
@@ -38,10 +53,8 @@ class Lexer(object):
                 while self.lastchar.isalnum():
                     id_str += self.lastchar
                     self._advance()
-                if id_str == 'def':
-                    yield Token(kind=TokenKind.DEF, value=id_str)
-                elif id_str == 'extern':
-                    yield Token(kind=TokenKind.EXTERN, value=id_str)
+                if get_keyword(id_str):
+                    yield Token(kind=get_keyword(id_str), value=id_str)
                 else:
                     yield Token(kind=TokenKind.IDENTIFIER, value=id_str)
             # Number

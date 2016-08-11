@@ -3,6 +3,10 @@ from ast import *
 from parsing import *
 from codegen import *
 
+def dump(str, filename):
+    with open(filename, 'w') as file:
+        file.write(str)
+
 class KaleidoscopeEvaluator(object):
     """Evaluator for Kaleidoscope expressions.
     Once an object is created, calls to evaluate() add new expressions to the
@@ -16,7 +20,7 @@ class KaleidoscopeEvaluator(object):
         llvm.initialize_native_asmprinter()
 
         self.codegen = LLVMCodeGenerator()
-
+        self._add_builtins(self.codegen.module)
         self.target = llvm.Target.from_default_triple()
 
     def evaluate(self, codestr, optimize=True, llvmdump=False):
@@ -28,9 +32,8 @@ class KaleidoscopeEvaluator(object):
         ast = Parser().parse_toplevel(codestr)
         self.codegen.generate_code(ast)
 
-        if llvmdump:
-            print('======== Unoptimized LLVM IR')
-            print(str(self.codegen.module))
+        if llvmdump: 
+            dump(str(self.codegen.module), '__dump__unoptimized.ll')
 
         # If we're evaluating a definition or extern declaration, don't do
         # anything else. If we're evaluating an anonymous wrapper for a toplevel
@@ -41,6 +44,7 @@ class KaleidoscopeEvaluator(object):
 
         # Convert LLVM IR into in-memory representation
         llvmmod = llvm.parse_assembly(str(self.codegen.module))
+        llvmmod.verify()
 
         # Optimize the module
         if optimize:
@@ -51,8 +55,7 @@ class KaleidoscopeEvaluator(object):
             pm.run(llvmmod)
 
             if llvmdump:
-                print('======== Optimized LLVM IR')
-                print(str(llvmmod))
+                dump(str(llvmmod), '__dump__optimized.ll')
 
         # Create a MCJIT execution engine to JIT-compile the module. Note that
         # ee takes ownership of target_machine, so it has to be recreated anew
@@ -62,13 +65,32 @@ class KaleidoscopeEvaluator(object):
             ee.finalize_object()
 
             if llvmdump:
-                print('======== Machine code')
-                print(target_machine.emit_assembly(llvmmod))
+                dump(target_machine.emit_assembly(llvmmod), '__dump__assembler.asm')
+                print(colored("Code dumped in local directory", 'yellow'))
 
             fptr = CFUNCTYPE(c_double)(ee.get_function_address(ast.proto.name))
 
             result = fptr()
             return result
+
+    def _add_builtins(self, module):
+        # The C++ tutorial adds putchard() simply by defining it in the host C++
+        # code, which is then accessible to the JIT. It doesn't work as simply
+        # for us; but luckily it's very easy to define new "C level" functions
+        # for our JITed code to use - just emit them as LLVM IR. This is what
+        # this method does.
+
+        # Add the declaration of putchar
+        putchar_ty = ir.FunctionType(ir.IntType(32), [ir.IntType(32)])
+        putchar = ir.Function(module, putchar_ty, 'putchar')
+
+        # Add putchard
+        putchard_ty = ir.FunctionType(ir.DoubleType(), [ir.DoubleType()])
+        putchard = ir.Function(module, putchard_ty, 'putchard')
+        irbuilder = ir.IRBuilder(putchard.append_basic_block('entry'))
+        ival = irbuilder.fptoui(putchard.args[0], ir.IntType(32), 'intcast')
+        irbuilder.call(putchar, [ival])
+        irbuilder.ret(ir.Constant(ir.DoubleType(), 0))
 
 
 #---- Some unit tests ----#
@@ -94,30 +116,112 @@ class TestEvaluator(unittest.TestCase):
         self.assertIsNone(e.evaluate('def cfadder(x) ceil(x) + floor(x)'))
         self.assertEqual(e.evaluate('cfadder(3.14)'), 7.0)
 
+    def test_basic_if(self):
+        e = KaleidoscopeEvaluator()
+        e.evaluate('def foo(a b) a * if a < b then a + 1 else b + 1')
+        self.assertEqual(e.evaluate('foo(3, 4)'), 12)
+        self.assertEqual(e.evaluate('foo(5, 4)'), 25)
+
+    def test_nested_if(self):
+        e = KaleidoscopeEvaluator()
+        e.evaluate('''
+            def foo(a b c)
+                if a < b
+                    then if a < c then a * 2 else c * 2
+                    else b * 2''')
+        self.assertEqual(e.evaluate('foo(1, 20, 300)'), 2)
+        self.assertEqual(e.evaluate('foo(10, 2, 300)'), 4)
+        self.assertEqual(e.evaluate('foo(100, 2000, 30)'), 60)
+
+    def test_nested_if2(self):
+        e = KaleidoscopeEvaluator()
+        e.evaluate('''
+            def min3(a b c)
+                if a < b
+                    then if a < c 
+                        then a 
+                        else c
+                    else if b < c
+                        then b 
+                        else c
+            ''')
+        self.assertEqual(e.evaluate('min3(1, 2, 3)'), 1)
+        self.assertEqual(e.evaluate('min3(1, 3, 2)'), 1)
+        self.assertEqual(e.evaluate('min3(2, 1, 3)'), 1)
+        self.assertEqual(e.evaluate('min3(2, 3, 1)'), 1)
+        self.assertEqual(e.evaluate('min3(3, 1, 2)'), 1)
+        self.assertEqual(e.evaluate('min3(3, 3, 2)'), 2)
+        self.assertEqual(e.evaluate('min3(3, 3, 3)'), 3)
+
+
+    def test_for(self):
+        # For doesn't return anything, so just make sure evaluating it doesn't
+        # crash.
+        e = KaleidoscopeEvaluator()
+        e.evaluate('''
+            def foo(a b c)
+                if a < b
+                    then for x = 1.0, x < b, c in x+a+c*b
+                    else c * 2''')
+        self.assertEqual(e.evaluate('foo(1, 2, 3)'), 0)
+        self.assertEqual(e.evaluate('foo(3, 2, 30)'), 60)
+
+
+
+
 if __name__ == '__main__':
+
     import sys
     import colorama
     from termcolor import colored
     colorama.init()
     k = KaleidoscopeEvaluator()
-    if len(sys.argv) <= 1 :
-        # Example of how to define a couple of functions and then evaluate
-        # expressions involving them. A single KaleidoscopeEvaluator object retains
-        # its state across multiple calls to 'evaluate'.
-        print(k.evaluate('def adder(a b) a + b'))
-        print(k.evaluate('def foo(x) (1+2+x)*(x+(1+2))'))
-        print(k.evaluate('foo(3)'))
-        print(k.evaluate('foo(adder(3, 3)*4)', optimize=True, llvmdump=True))
-    else:
-        # Simple REPL loop
-        command = ' '.join(sys.argv[1:])
+
+    def print_eval(command, options = dict()):
+        try:
+            print(colored(k.evaluate(command, **options), 'green'))
+        except ParseError as err:
+            print(colored('Parse error: ' + str(err), "red"))                    
+        except CodegenError as err:
+            print(colored('Eval error: ' + str(err), 'red'))
+        except RuntimeError as err:
+            print(colored('Eval error: ' + str(err), 'red'))
+                
+
+    commands = [
+        'def add(a b) a + b',
+        'add(1, 2)',
+        'add(add(1,2), add(3,4))',
+        'def max(a b) if a < b then b else a',
+        'max(1,2)',        
+        'max(max(1,2), max(3,4))',
+        'def factorial(n) if n < 2 then 1 else n * factorial(n-1)',
+        'factorial(5)',
+        'def alphabet(a b) for x = 64 + a, x < 64 + b in putchard(x)',
+        'alphabet(1,26)'        
+    ]
+
+    if len(sys.argv) >= 2 :
+        print_eval(' '.join(sys.argv[1:]))
+
+    else :
+        # Execute all predefined commands
+        for command in commands:
+            print('K>', command)
+            print_eval(command)
+
+        # Then enter a simple REPL loop
+        print(colored('Type exit or quit to stop the program', 'yellow'))
+        options = {
+            'optimize' : True,
+            'llvmdump' : False
+        }
+        command = ""
         while not command in ['exit', 'quit']:
-            try:
-                print(colored(k.evaluate(command), 'green'))
-            except ParseError as err:
-                print(colored('Parse error: ' + str(err), "red"))                    
-            except CodegenError as err:
-                print(colored('Eval error: ' + str(err), 'red'))
+            if command in options:
+                options[command] = not options[command]
+                print(command, '=', options[command])
+            elif command :  
+                print_eval(command, options)
             print("K> ", end="")
-            command = input()
-            
+            command = input().strip()

@@ -98,6 +98,8 @@ class Parser(object):
     #   ::= identifierexpr
     #   ::= numberexpr
     #   ::= parenexpr
+    #   ::= ifexpr
+    #   ::= forexpr
     def _parse_primary(self):
         if self.cur_tok.kind == TokenKind.IDENTIFIER:
             return self._parse_identifier_expr()
@@ -105,8 +107,42 @@ class Parser(object):
             return self._parse_number_expr()
         elif self._cur_tok_is_operator('('):
             return self._parse_paren_expr()
+        elif self.cur_tok.kind == TokenKind.IF:
+            return self._parse_if_expr()
+        elif self.cur_tok.kind == TokenKind.FOR:
+            return self._parse_for_expr()
         else:
             raise ParseError('Unknown token when expecting an expression')
+
+    # ifexpr ::= 'if' expression 'then' expression 'else' expression
+    def _parse_if_expr(self):
+        self._get_next_token()  # consume the 'if'
+        cond_expr = self._parse_expression()
+        self._match(TokenKind.THEN)
+        then_expr = self._parse_expression()
+        self._match(TokenKind.ELSE)
+        else_expr = self._parse_expression()
+        return If(cond_expr, then_expr, else_expr)
+
+    # forexpr ::= 'for' identifier '=' expr ',' expr (',' expr)? 'in' expr
+    def _parse_for_expr(self):
+        self._get_next_token()  # consume the 'for'
+        id_name = self.cur_tok.value
+        self._match(TokenKind.IDENTIFIER)
+        self._match(TokenKind.OPERATOR, '=')
+        start_expr = self._parse_expression()
+        self._match(TokenKind.OPERATOR, ',')
+        end_expr = self._parse_expression()
+
+        # The step part is optional
+        if self._cur_tok_is_operator(','):
+            self._get_next_token()
+            step_expr = self._parse_expression()
+        else:
+            step_expr = None
+        self._match(TokenKind.IN)
+        body = self._parse_expression()
+        return For(id_name, start_expr, end_expr, step_expr, body)
 
     # binoprhs ::= (<binop> primary)*
     def _parse_binop_rhs(self, expr_prec, lhs):
@@ -245,10 +281,16 @@ class TestParser(unittest.TestCase):
 
 if __name__ == '__main__':
     import sys
-    program = 'def bina(a b) a + b'
+    programs = [
+        'def bina(a b) a + b',
+        'def max(a b) if a < b then b else a',
+        'def print(a b) for i = a, b, 1 in print(i)'
+    ]
     if len(sys.argv) > 1 :
-        program = ' '.join(sys.argv[1:])
-    print("\nPROGRAM: ", program)    
-    print("\nAST: ")    
+        programs = [' '.join(sys.argv[1:])]
     p = Parser()
-    print(p.parse_toplevel(program).dump())
+    for program in programs:    
+        print("\nPROGRAM: ", program)    
+        print("\nAST: ")    
+        print(p.parse_toplevel(program).dump())
+        print()
