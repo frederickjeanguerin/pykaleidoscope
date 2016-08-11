@@ -4,32 +4,23 @@ from termcolor import colored
 colorama.init()
 import parsing, codegen, codexec
 
-operators = [
-    'def binary & 5 (P Q) if P then if Q then 1 else 0 else 0',        
-    'def binary | 5 (P Q) if P then 1 else if Q then 1 else 0',        
-    'def unary ! (P) if P then 0 else 1',
-    'def unary - (x) 0 - x',
-    'def binary > 10 (a b) b < a',        
-    'def binary = 10 (a b) !(a < b) & !(b < a)',
-    # unicode not yet supported        
-    # 'def binary ≥ 10 (a b) !(a < b)',        
-    # 'def binary ≤ 10 (a b) !(b < a)',
-    # 'def binary ≠ 10 (a b) !(a = b)'	        
-]
-
-
 commands = [
     'def add(a b) a + b',
     'add(1, 2)',
     'add(add(1,2), add(3,4))',
-    'def max(a b) if a < b then b else a',
     'max(1,2)',        
     'max(max(1,2), max(3,4))',
-    'def factorial(n) if n < 2 then 1 else n * factorial(n-1)',
     'factorial(5)',
     'def alphabet(a b) ( for x = 64 + a, x < 64 + b + 1 in putchard(x) ) - 64',
     'alphabet(1,26)'
-] + operators
+]
+
+USAGE = """USAGE: 
+    run --help   : show this message 
+    run --test   : run the unit tests       
+    run file     : run the selected file .kal then exit        
+    run command  : run the command then exit       
+    run          : start the REPL """
 
 def repl(optimize = True, llvmdump = False, noexec = False, parseonly = False):
 
@@ -37,7 +28,7 @@ def repl(optimize = True, llvmdump = False, noexec = False, parseonly = False):
     
     k = codexec.KaleidoscopeEvaluator()
 
-    def print_eval(command, options):
+    def print_eval(command, options = dict()):
         try:
             for result in k.eval_generator(command, **options):
                 if not result is None:
@@ -47,18 +38,39 @@ def repl(optimize = True, llvmdump = False, noexec = False, parseonly = False):
         except codegen.CodegenError as err:
             print(colored('Eval error: ' + str(err), 'red'))
         except RuntimeError as err:
-            print(colored('Internal error: ' + str(err), 'red'))            
+            print(colored('Internal error: ' + str(err), 'red'))
 
+    # Load basic language library
+    try:
+        FILE = 'basiclib.kal' 
+        with open(FILE) as file:
+            print_eval(file.read())
+    except FileNotFoundError:
+        print(colored("Could not charge basic libairy:", red), FILE)
+
+    # If some arguments passed in, open the file or execute the command then exit        
     if len(sys.argv) >= 2 :
-        print_eval(' '.join(sys.argv[1:]), options)
+        arg = ' '.join(sys.argv[1:])
+        if arg in ['help', '-help', '--help', '-h', '-?', '?']:
+            print(USAGE)
+        elif arg in ['test', '-test', '--test', 'tests', '-t']:
+            import unittest
+            tests = unittest.defaultTestLoader.discover(".", "*.py")    
+            unittest.TextTestRunner().run(tests)
+        else:
+            try: 
+                with open(arg) as file:
+                    print_eval(file.read(), options)
+            except FileNotFoundError:
+                print_eval(arg, options)
         return
 
-    # Execute all predefined commands
+    # Execute all predefined commands before entering the REPL
     for command in commands:
         print('K>', command)
         print_eval(command, options)
 
-    # Then enter a simple REPL loop
+    # Enter a REPL loop
     print(colored('Type exit or quit to stop the program', 'yellow'))
     command = ""
     while not command in ['exit', 'quit']:

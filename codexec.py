@@ -23,6 +23,7 @@ class KaleidoscopeEvaluator(object):
         self._add_builtins(self.codegen.module)
         self.target = llvm.Target.from_default_triple()
 
+
     def evaluate(self, codestr, optimize=True, llvmdump=False, noexec = False, parseonly = False):
         return next(self.eval_generator(codestr, optimize, llvmdump, noexec, parseonly))
 
