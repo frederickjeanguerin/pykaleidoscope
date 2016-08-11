@@ -96,52 +96,66 @@ class LLVMCodeGenerator(object):
         phi.add_incoming(else_val, else_bb)
         return phi
 
-        
+
     def _codegen_For(self, node):
         # Output this as:
         #   ...
         #   start = startexpr
-        #   goto loop
-        # loop:
-        #   variable = phi [start, loopheader], [nextvariable, loopend]
-        #   ...
-        #   bodyexpr
-        #   ...
-        # loopend:
-        #   step = stepexpr
-        #   nextvariable = variable + step
+        #   goto loopcond
+        # loopcond:
+        #   variable = phi [start, loopheader], [nextvariable, loopbody]
+        #   step = stepexpr (or variable + 1)
+        #   nextvariable = step
         #   endcond = endexpr
-        #   br endcond, loop, endloop
-        # outloop:
+        #   br endcond, loopbody, loopafter
+        # loopbody:
+        #   bodyexpr
+        #   jmp loopcond
+        # loopafter:
+        #   return variable
 
-        # Emit the start expr first, without the variable in scope.
+        # Define blocks
+        loopcond_bb = ir.Block(self.builder.function, 'loopcond')
+        loopbody_bb = ir.Block(self.builder.function, 'loopbody')
+        loopafter_bb = ir.Block(self.builder.function, 'loopafter')
+
+        # ###########
+        # loop header 
+        #############
+
+        # Evaluation the starting value for the counter
         start_val = self._codegen(node.start_expr)
-        preheader_bb = self.builder.block
-        loop_bb = self.builder.function.append_basic_block('loop')
 
-        # Insert an explicit fall through from the current block to loop_bb
-        self.builder.branch(loop_bb)
-        self.builder.position_at_start(loop_bb)
+        # Save the current block to tell the loop cond where we are coming from
+        loopheader_bb = self.builder.block
 
-        # Start the PHI node with an entry for start
+        # Jump to loop cond
+        self.builder.branch(loopcond_bb)
+
+        
+        ###########
+        # loop cond
+        ###########
+
+        self.builder.function.basic_blocks.append(loopcond_bb)
+        self.builder.position_at_start(loopcond_bb)
+
+        # The incoming value depends if we are entering the block from the header or looping
         phi = self.builder.phi(ir.DoubleType(), node.id_name)
-        phi.add_incoming(start_val, preheader_bb)
+        phi.add_incoming(start_val, loopheader_bb)
+        # The second incoming to the phi node will be added later when we reach the actual looping.
 
         # Within the loop, the variable is defined equal to the PHI node. If it
-        # shadows an existing variable, we have to restore it, so save it now.
+        # shadows an existing variable, we will restore it later, so save it now.
         oldval = self.func_symtab.get(node.id_name)
         self.func_symtab[node.id_name] = phi
 
-        # Emit the body of the loop. This, like any other expr, can change the
-        # current BB. Note that we ignore the value computed by the body.
-        body_val = self._codegen(node.body)
-
-        # Increment the counter
+        # If the step is unknown, make it increment by 1
         if node.step_expr is None:
-            stepval = ir.Constant(ir.DoubleType(), 1.0)
-        else:
-            stepval = self._codegen(node.step_expr)
-        nextvar = self.builder.fadd(phi, stepval, 'nextvar')
+            node.step_expr = Binary("+",Variable(node.id_name), Number(1.0))
+
+        # Evaluate the step    
+        nextvar = self._codegen(node.step_expr)
 
         # Compute the end condition
         endcond = self._codegen(node.end_expr)
@@ -149,30 +163,43 @@ class LLVMCodeGenerator(object):
             '!=', endcond, ir.Constant(ir.DoubleType(), 0.0),
             'loopcond')
 
+        # Goto body if condition satisfied, otherwise, exit.
+        self.builder.cbranch(cmp, loopbody_bb, loopafter_bb)
 
-        # Create the 'after loop' block
-        after_bb = ir.Block(self.builder.function, 'after')
-        # Insert the conditional branch into the end of loop_end_bb
-        self.builder.cbranch(cmp, loop_bb, after_bb)
 
-        # Add a new entry to the PHI node for the backedge
-        loop_end_bb = self.builder.block
-        phi.add_incoming(nextvar, loop_end_bb)
+        ############
+        # loop body
+        ############
 
-        # New code will be inserted into after_bb
-        self.builder.function.basic_blocks.append(after_bb)
-        self.builder.position_at_start(after_bb)
+        self.builder.function.basic_blocks.append(loopbody_bb)
+        self.builder.position_at_start(loopbody_bb)
 
-        # Remove the loop variable from the symbol table; if it shadowed an
-        # existing variable, restore that.
+        # Emit the body of the loop. 
+        # Note that we ignore the value computed by the body.
+        body_val = self._codegen(node.body)
+
+        # Tell loopcond where we are coming from before jumping to it
+        phi.add_incoming(nextvar, self.builder.block)
+        self.builder.branch(loopcond_bb)
+
+
+        #############
+        # loop after
+        #############
+
+        # New code will be inserted into a new block
+        self.builder.function.basic_blocks.append(loopafter_bb)
+        self.builder.position_at_start(loopafter_bb)
+
+        # Remove the loop variable from the symbol table; 
+        # if it shadowed an existing variable, restore that.
         if oldval is None:
             del self.func_symtab[node.id_name]
         else:
             self.func_symtab[node.id_name] = oldval
 
-        # The 'for' expression returns the last nextvar
-        # return ir.Constant(ir.DoubleType(), 0.0)
-        return nextvar
+        # The 'for' expression returns the last value of the counter
+        return phi
 
     def _codegen_Call(self, node):
         callee_func = self.module.globals.get(node.callee, None)
@@ -230,7 +257,7 @@ if __name__ == '__main__':
     programs = [
         'def add(a b) a + b',
         'def max(a b) if a < b then b else a',
-        'def looping(a b) for i = a, b, 1 in i + 1'
+        'def looping(a b) for i = a, i < b, i + 1 in print(i)'
     ]
     if len(sys.argv) > 1 :
         programs = [' '.join(sys.argv[1:])]

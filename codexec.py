@@ -155,18 +155,14 @@ class TestEvaluator(unittest.TestCase):
 
 
     def test_for(self):
-        # For doesn't return anything, so just make sure evaluating it doesn't
-        # crash.
         e = KaleidoscopeEvaluator()
         e.evaluate('''
-            def foo(a b c)
-                if a < b
-                    then for x = 1.0, x < b, c in x+a+c*b
-                    else c * 2''')
-        self.assertEqual(e.evaluate('foo(1, 2, 3)'), 0)
-        self.assertEqual(e.evaluate('foo(3, 2, 30)'), 60)
-
-
+            def oddlessthan(n)
+                for x = 1.0, x < n, x + 2 in x
+        ''')
+        self.assertEqual(e.evaluate('oddlessthan(100)'), 101)
+        self.assertEqual(e.evaluate('oddlessthan(1000)'), 1001)
+        self.assertEqual(e.evaluate('oddlessthan(0)'), 1)
 
 
 if __name__ == '__main__':
@@ -197,7 +193,7 @@ if __name__ == '__main__':
         'max(max(1,2), max(3,4))',
         'def factorial(n) if n < 2 then 1 else n * factorial(n-1)',
         'factorial(5)',
-        'def alphabet(a b) for x = 64 + a, x < 64 + b in putchard(x)',
+        'def alphabet(a b) ( for x = 64 + a, x < 64 + b + 1 in putchard(x) ) - 64',
         'alphabet(1,26)'        
     ]
 
