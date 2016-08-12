@@ -1,4 +1,4 @@
-# Chapter 6 - Extending the language: User-defined Operators
+# Chapter 7 - Mutable variables
 
 from collections import namedtuple
 from ctypes import CFUNCTYPE, c_double
@@ -24,6 +24,7 @@ class TokenKind(Enum):
     IN = -11
     BINARY = -12
     UNARY = -13
+    VAR = -14
 
 
 Token = namedtuple('Token', 'kind value')
@@ -51,6 +52,7 @@ class Lexer(object):
             'in':       TokenKind.IN,
             'binary':   TokenKind.BINARY,
             'unary':    TokenKind.UNARY,
+            'var':      TokenKind.VAR,
         }
 
     def tokens(self):
@@ -120,6 +122,26 @@ class VariableExprAST(ExprAST):
     def dump(self, indent=0):
         return '{0}{1}[{2}]'.format(
             ' ' * indent, self.__class__.__name__, self.name)
+
+
+class VarExprAST(ExprAST):
+    def __init__(self, vars, body):
+        # vars is a sequence of (name, init) pairs
+        self.vars = vars
+        self.body = body
+
+    def dump(self, indent=0):
+        prefix = ' ' * indent
+        s = '{0}{1}\n'.format(prefix, self.__class__.__name__)
+        for name, init in self.vars:
+            s += '{0} {1}'.format(prefix, name)
+            if init is None:
+                s += '\n'
+            else:
+                s += '=\n' + init.dump(indent+2) + '\n'
+        s += '{0} Body:\n'.format(prefix)
+        s += self.body.dump(indent + 2)
+        return s
 
 
 class UnaryExprAST(ExprAST):
@@ -296,7 +318,7 @@ class Parser(object):
             raise ParseError('Expected "{0}"'.format(expected_kind))
         self._get_next_token()
 
-    _precedence_map = {'<': 10, '+': 20, '-': 20, '*': 40}
+    _precedence_map = {'=': 2, '<': 10, '+': 20, '-': 20, '*': 40}
 
     def _cur_tok_precedence(self):
         """Get the operator precedence of the current token."""
@@ -362,6 +384,8 @@ class Parser(object):
             return self._parse_if_expr()
         elif self.cur_tok.kind == TokenKind.FOR:
             return self._parse_for_expr()
+        elif self.cur_tok.kind == TokenKind.VAR:
+            return self._parse_var_expr()
         else:
             raise ParseError('Unknown token when expecting an expression')
 
@@ -394,6 +418,38 @@ class Parser(object):
         self._match(TokenKind.IN)
         body = self._parse_expression()
         return ForExprAST(id_name, start_expr, end_expr, step_expr, body)
+
+    # varexpr ::= 'var' identifier ('=' expr)?
+    #                   (',' identifier ('=' expr)?)* 'in' expr
+    def _parse_var_expr(self):
+        self._get_next_token()  # consume the 'var'
+        vars = []
+
+        # At least one variable name is required
+        if self.cur_tok.kind != TokenKind.IDENTIFIER:
+            raise ParseError('expected identifier after "var"')
+        while True:
+            name = self.cur_tok.value
+            self._get_next_token()  # consume the identifier
+
+            # Parse the optional initializer
+            if self._cur_tok_is_operator('='):
+                self._get_next_token()  # consume the '='
+                init = self._parse_expression()
+            else:
+                init = None
+            vars.append((name, init))
+
+            # If there are no more vars in this declaration, we're done.
+            if not self._cur_tok_is_operator(','):
+                break
+            self._get_next_token()  # consume the ','
+            if self.cur_tok.kind != TokenKind.IDENTIFIER:
+                raise ParseError('expected identifier in "var" after ","')
+
+        self._match(TokenKind.IN)
+        body = self._parse_expression()
+        return VarExprAST(vars, body)
 
     # unary
     #   ::= primary
@@ -532,12 +588,18 @@ class LLVMCodeGenerator(object):
         self.builder = None
 
         # Manages a symbol table while a function is being codegen'd. Maps var
-        # names to ir.Value.
+        # names to ir.Value which represents the var's address (alloca).
         self.func_symtab = {}
 
     def generate_code(self, node):
         assert isinstance(node, (PrototypeAST, FunctionAST))
         return self._codegen(node)
+
+    def _create_entry_block_alloca(self, name):
+        """Create an alloca in the entry BB of the current function."""
+        builder = ir.IRBuilder()
+        builder.position_at_start(self.builder.function.entry_basic_block)
+        return builder.alloca(ir.DoubleType(), size=None, name=name)
 
     def _codegen(self, node):
         """Node visitor. Dispathces upon node type.
@@ -551,7 +613,8 @@ class LLVMCodeGenerator(object):
         return ir.Constant(ir.DoubleType(), float(node.val))
 
     def _codegen_VariableExprAST(self, node):
-        return self.func_symtab[node.name]
+        var_addr = self.func_symtab[node.name]
+        return self.builder.load(var_addr, node.name)
 
     def _codegen_UnaryExprAST(self, node):
         operand = self._codegen(node.operand)
@@ -559,6 +622,16 @@ class LLVMCodeGenerator(object):
         return self.builder.call(func, [operand], 'unop')
 
     def _codegen_BinaryExprAST(self, node):
+        # Assignment is handled specially because it doesn't follow the general
+        # recipe of binary ops.
+        if node.op == '=':
+            if not isinstance(node.lhs, VariableExprAST):
+                raise CodegenError('lhs of "=" must be a variable')
+            var_addr = self.func_symtab[node.lhs.name]
+            rhs_val = self._codegen(node.rhs)
+            self.builder.store(rhs_val, var_addr)
+            return rhs_val
+
         lhs = self._codegen(node.lhs)
         rhs = self._codegen(node.rhs)
 
@@ -621,48 +694,49 @@ class LLVMCodeGenerator(object):
 
     def _codegen_ForExprAST(self, node):
         # Output this as:
+        #   var = alloca double
         #   ...
         #   start = startexpr
+        #   store start -> var
         #   goto loop
         # loop:
-        #   variable = phi [start, loopheader], [nextvariable, loopend]
         #   ...
         #   bodyexpr
         #   ...
         # loopend:
         #   step = stepexpr
-        #   nextvariable = variable + step
         #   endcond = endexpr
-        #   br endcond, loop, endloop
-        # outloop:
+        #   curvar = load var
+        #   nextvariable = curvar + step
+        #   store nextvar -> var
+        #   br endcond, loop, afterloop
+        # afterloop:
 
-        # Emit the start expr first, without the variable in scope.
+        # Create an alloca for the induction var. Save and restore location of
+        # our builder because _create_entry_block_alloca may modify it (llvmlite
+        # issue #44).
+        saved_block = self.builder.block
+        var_addr = self._create_entry_block_alloca(node.id_name)
+        self.builder.position_at_end(saved_block)
+
+        # Emit the start expr first, without the variable in scope. Store it
+        # into the var.
         start_val = self._codegen(node.start_expr)
-        preheader_bb = self.builder.block
+        self.builder.store(start_val, var_addr)
         loop_bb = self.builder.function.append_basic_block('loop')
 
         # Insert an explicit fall through from the current block to loop_bb
         self.builder.branch(loop_bb)
         self.builder.position_at_start(loop_bb)
 
-        # Start the PHI node with an entry for start
-        phi = self.builder.phi(ir.DoubleType(), node.id_name)
-        phi.add_incoming(start_val, preheader_bb)
-
-        # Within the loop, the variable is defined equal to the PHI node. If it
-        # shadows an existing variable, we have to restore it, so save it now.
-        oldval = self.func_symtab.get(node.id_name)
-        self.func_symtab[node.id_name] = phi
+        # Within the loop, the variable now refers to our alloca slot. If it
+        # shadows an existing variable, we'll have to restore, so save it now.
+        old_var_addr = self.func_symtab.get(node.id_name)
+        self.func_symtab[node.id_name] = var_addr
 
         # Emit the body of the loop. This, like any other expr, can change the
         # current BB. Note that we ignore the value computed by the body.
         body_val = self._codegen(node.body)
-
-        if node.step_expr is None:
-            stepval = ir.Constant(ir.DoubleType(), 1.0)
-        else:
-            stepval = self._codegen(node.step_expr)
-        nextvar = self.builder.fadd(phi, stepval, 'nextvar')
 
         # Compute the end condition
         endcond = self._codegen(node.end_expr)
@@ -670,8 +744,15 @@ class LLVMCodeGenerator(object):
             '!=', endcond, ir.Constant(ir.DoubleType(), 0.0),
             'loopcond')
 
+        if node.step_expr is None:
+            stepval = ir.Constant(ir.DoubleType(), 1.0)
+        else:
+            stepval = self._codegen(node.step_expr)
+        cur_var = self.builder.load(var_addr, node.id_name)
+        nextval = self.builder.fadd(cur_var, stepval, 'nextvar')
+        self.builder.store(nextval, var_addr)
+
         # Create the 'after loop' block and insert it
-        loop_end_bb = self.builder.block
         after_bb = self.builder.function.append_basic_block('afterloop')
 
         # Insert the conditional branch into the end of loop_end_bb
@@ -680,18 +761,50 @@ class LLVMCodeGenerator(object):
         # New code will be inserted into after_bb
         self.builder.position_at_start(after_bb)
 
-        # Add a new entry to the PHI node for the backedge
-        phi.add_incoming(nextvar, loop_end_bb)
-
-        # Remove the loop variable from the symbol table; if it shadowed an
-        # existing variable, restore that.
-        if oldval is None:
-            del self.func_symtab[node.id_name]
+        # Restore the old var address if it was shadowed.
+        if old_var_addr is not None:
+            self.func_symtab[node.id_name] = old_var_addr
         else:
-            self.func_symtab[node.id_name] = oldval
+            del self.func_symtab[node.id_name]
 
         # The 'for' expression always returns 0
         return ir.Constant(ir.DoubleType(), 0.0)
+
+    def _codegen_VarExprAST(self, node):
+        old_bindings = []
+
+        for name, init in node.vars:
+            # Emit the initializer before adding the variable to scope. This
+            # prefents the initializer from referencing the variable itself.
+            if init is not None:
+                init_val = self._codegen(init)
+            else:
+                init_val = ir.Constant(ir.DoubleType(), 0.0)
+
+            # Create an alloca for the induction var and store the init value to
+            # it. Save and restore location of our builder because
+            # _create_entry_block_alloca may modify it (llvmlite issue #44).
+            saved_block = self.builder.block
+            var_addr = self._create_entry_block_alloca(name)
+            self.builder.position_at_end(saved_block)
+            self.builder.store(init_val, var_addr)
+
+            # We're going to shadow this name in the symbol table now; remember
+            # what to restore.
+            old_bindings.append(self.func_symtab.get(name))
+            self.func_symtab[name] = var_addr
+
+        # Now all the vars are in scope. Codegen the body.
+        body_val = self._codegen(node.body)
+
+        # Restore the old bindings.
+        for i, (name, _) in enumerate(node.vars):
+            if old_bindings[i] is not None:
+                self.func_symtab[name] = old_bindings[i]
+            else:
+                del self.func_symtab[name]
+
+        return body_val
 
     def _codegen_CallExprAST(self, node):
         callee_func = self.module.get_global(node.callee)
@@ -724,10 +837,6 @@ class LLVMCodeGenerator(object):
         else:
             # Otherwise create a new function
             func = ir.Function(self.module, func_ty, funcname)
-        # Set function argument names from AST
-        for i, arg in enumerate(func.args):
-            arg.name = node.argnames[i]
-            self.func_symtab[arg.name] = arg
         return func
 
     def _codegen_FunctionAST(self, node):
@@ -739,6 +848,14 @@ class LLVMCodeGenerator(object):
         # Create the entry BB in the function and set the builder to it.
         bb_entry = func.append_basic_block('entry')
         self.builder = ir.IRBuilder(bb_entry)
+
+        # Add all arguments to the symbol table and create their allocas
+        for i, arg in enumerate(func.args):
+            arg.name = node.proto.argnames[i]
+            alloca = self.builder.alloca(ir.DoubleType(), name=arg.name)
+            self.builder.store(arg, alloca)
+            self.func_symtab[arg.name] = alloca
+
         retval = self._codegen(node.body)
         self.builder.ret(retval)
         return func
@@ -849,6 +966,9 @@ class TestParser(unittest.TestCase):
         elif isinstance(ast, BinaryExprAST):
             return ['Binop', ast.op,
                     self._flatten(ast.lhs), self._flatten(ast.rhs)]
+        elif isinstance(ast, VarExprAST):
+            vars = [[name, self._flatten(init)] for name, init in ast.vars]
+            return ['Var', vars, self._flatten(ast.body)]
         elif isinstance(ast, CallExprAST):
             args = [self._flatten(arg) for arg in ast.args]
             return ['Call', ast.callee, args]
@@ -865,133 +985,80 @@ class TestParser(unittest.TestCase):
         self.assertIsInstance(toplevel, FunctionAST)
         self.assertEqual(self._flatten(toplevel.body), expected)
 
-    def test_unary(self):
+    def test_assignment(self):
         p = Parser()
-        ast = p.parse_toplevel('def unary!(x) 0 - x')
-        self.assertIsInstance(ast, FunctionAST)
-        proto = ast.proto
-        self.assertIsInstance(proto, PrototypeAST)
-        self.assertTrue(proto.isoperator)
-        self.assertEqual(proto.name, 'unary!')
-
-        ast = p.parse_toplevel('!a + !b - !!c')
+        ast = p.parse_toplevel('def text(x) x = 5')
         self._assert_body(ast,
-            ['Binop', '-',
-                ['Binop', '+',
-                    ['Unary', '!', ['Variable', 'a']],
-                    ['Unary', '!', ['Variable', 'b']]],
-                ['Unary', '!', ['Unary', '!', ['Variable', 'c']]]])
+            ['Binop', '=', ['Variable', 'x'], ['Number', '5']])
 
-    def test_binary_op_with_prec(self):
-        ast = Parser().parse_toplevel('def binary% 77(a b) a + b')
-        self.assertIsInstance(ast, FunctionAST)
-        proto = ast.proto
-        self.assertIsInstance(proto, PrototypeAST)
-        self.assertTrue(proto.isoperator)
-        self.assertEqual(proto.prec, 77)
-        self.assertEqual(proto.name, 'binary%')
-
-    def test_binop_relative_precedence(self):
-        # with precedence 77, % binds stronger than all existing ops
+    def test_varexpr(self):
         p = Parser()
-        p.parse_toplevel('def binary% 77(a b) a + b')
-        ast = p.parse_toplevel('a * 10 % 5 * 10')
+        ast = p.parse_toplevel('def foo(x y) var t = 1 in y')
         self._assert_body(ast,
-            ['Binop', '*',
-                ['Binop', '*',
-                    ['Variable', 'a'],
-                    ['Binop', '%', ['Number', '10'], ['Number', '5']]],
-                ['Number', '10']])
-
-        ast = p.parse_toplevel('a % 20 * 5')
+             ['Var', [['t', ['Number', '1']]], ['Variable', 'y']])
+        ast = p.parse_toplevel('def foo(x y) var t = x, p = y + 1 in y')
         self._assert_body(ast,
-            ['Binop', '*',
-                ['Binop', '%', ['Variable', 'a'], ['Number', '20']],
-                ['Number', '5']])
-
-    def test_binary_op_no_prec(self):
-        ast = Parser().parse_toplevel('def binary $(a b) a + b')
-        self.assertIsInstance(ast, FunctionAST)
-        proto = ast.proto
-        self.assertIsInstance(proto, PrototypeAST)
-        self.assertTrue(proto.isoperator)
-        self.assertEqual(proto.prec, 30)
-        self.assertEqual(proto.name, 'binary$')
+            ['Var',
+                [['t', ['Variable', 'x']],
+                 ['p', ['Binop', '+', ['Variable', 'y'], ['Number', '1']]]],
+                ['Variable', 'y']])
 
 
 class TestEvaluator(unittest.TestCase):
-    def test_custom_binop(self):
+    def test_var_expr(self):
         e = KaleidoscopeEvaluator()
-        e.evaluate('def binary %(a b) a - b')
-        self.assertEqual(e.evaluate('10 % 5'), 5)
-        self.assertEqual(e.evaluate('100 % 5.5'), 94.5)
+        e.evaluate('''
+            def foo(x y z)
+                var s1 = x + y, s2 = z + y in
+                    s1 * s2
+            ''')
+        self.assertEqual(e.evaluate('foo(1, 2, 3)'), 15)
 
-    def test_custom_unop(self):
         e = KaleidoscopeEvaluator()
-        e.evaluate('def unary!(a) 0 - a')
-        e.evaluate('def unary^(a) a * a')
-        self.assertEqual(e.evaluate('!10'), -10)
-        self.assertEqual(e.evaluate('^10'), 100)
-        self.assertEqual(e.evaluate('!^10'), -100)
-        self.assertEqual(e.evaluate('^!10'), 100)
+        e.evaluate('def binary : 1 (x y) y')
+        e.evaluate('''
+            def foo(step)
+                var accum in
+                    (for i = 0, i < 10, step in
+                        accum = accum + i) : accum
+            ''')
+        # Note that Kaleidoscope's 'for' loop executes the last iteration even
+        # when the condition is no longer fulfilled after the step is done.
+        # 0 + 2 + 4 + 6 + 8 + 10
+        self.assertEqual(e.evaluate('foo(2)'), 30)
 
-    def test_mixed_ops(self):
+    def test_nested_var_exprs(self):
         e = KaleidoscopeEvaluator()
-        e.evaluate('def unary!(a) 0 - a')
-        e.evaluate('def unary^(a) a * a')
-        e.evaluate('def binary %(a b) a - b')
-        self.assertEqual(e.evaluate('!10 % !20'), 10)
-        self.assertEqual(e.evaluate('^(!10 % !20)'), 100)
+        e.evaluate('''
+            def foo(x y z)
+                var s1 = x + y, s2 = z + y in
+                    var s3 = s1 * s2 in
+                        s3 * 100
+            ''')
+        self.assertEqual(e.evaluate('foo(1, 2, 3)'), 1500)
 
-
-def generate_mandelbrot():
-    # Implements the Mandelbrot example described in the tutorial.
-    e = KaleidoscopeEvaluator()
-    e.evaluate('def unary- (v) 0 - v')
-    e.evaluate('def binary> 10 (lhs rhs) rhs < lhs')
-    e.evaluate('def binary: 1 (x y) y')
-    e.evaluate('''
-        def binary| 5 (lhs rhs)
-            if lhs then 1 else if rhs then 1 else 0
-        ''')
-    e.evaluate('''
-        def printdensity(d)
-            if d > 8 then
-                putchard(32) # ' '
-            else if d > 4 then
-                putchard(46) # '.'
-            else if d > 2 then
-                putchard(43) # '+'
-            else
-                putchard(42) # '*'
-        ''')
-    e.evaluate('''
-        def mandelconverger(real imag iters creal cimag)
-            if iters > 255 | (real*real + imag*imag > 4) then
-                iters
-            else
-                mandelconverger(real*real - imag*imag + creal,
-                                2*real*imag + cimag,
-                                iters+1, creal, cimag)
-        ''')
-    e.evaluate('''
-        def mandelconverge(real imag)
-            mandelconverger(real, imag, 0, real, imag)
-        ''')
-    e.evaluate('''
-        def mandelhelp(xmin xmax xstep ymin ymax ystep)
-            for y = ymin, y < ymax, ystep in (
-                (for x = xmin, x < xmax, xstep in
-                    printdensity(mandelconverge(x, y)))
-                : putchard(10))
-        ''')
-    e.evaluate('''
-        def mandel(realstart imagstart realmag imagmag)
-            mandelhelp(realstart, realstart+realmag*78, realmag,
-                       imagstart, imagstart+imagmag*48, imagmag)
-        ''')
-    e.evaluate('mandel(-2.3, -1.3, 0.05, 0.07)')
+    def test_assignments(self):
+        e = KaleidoscopeEvaluator()
+        e.evaluate('def binary : 1 (x y) y')
+        e.evaluate('''
+            def foo(a b)
+                var s, p, r in
+                   s = a + b :
+                   p = a * b :
+                   r = s + 100 * p :
+                   r
+            ''')
+        self.assertEqual(e.evaluate('foo(2, 3)'), 605)
+        self.assertEqual(e.evaluate('foo(10, 20)'), 20030)
 
 
 if __name__ == '__main__':
-    generate_mandelbrot()
+    # Evaluate some code.
+    kalei = KaleidoscopeEvaluator()
+    kalei.evaluate('def binary: 1 (x y) y')
+    kalei.evaluate('''
+        def foo(x y z)
+            var s1 = x + y, s2 = z + y in
+                s1 * s2
+        ''')
+    print(kalei.evaluate('foo(1, 2, 3)'))

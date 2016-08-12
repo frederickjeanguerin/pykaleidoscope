@@ -32,6 +32,12 @@ class LLVMCodeGenerator(object):
         assert isinstance(node, (Prototype, Function))
         return self._codegen(node)
 
+    def _alloca(self, name):
+        """Create an alloca in the entry BB of the current function."""
+        with self.builder.goto_entry_block():
+            alloca = self.builder.alloca(ir.DoubleType(), size=None, name=name)
+        return alloca
+
     def _codegen(self, node):
         """Node visitor. Dispatches upon node type.
         For AST node of class Foo, calls self._codegen_Foo. Each visitor is
@@ -45,7 +51,8 @@ class LLVMCodeGenerator(object):
 
     def _codegen_Variable(self, node):
         try:
-            return self.func_symtab[node.name]
+            var_addr = self.func_symtab[node.name]
+            return self.builder.load(var_addr, node.name)
         except KeyError:
             raise CodegenError("Undefined variable: " + node.name)    
 
@@ -137,8 +144,12 @@ class LLVMCodeGenerator(object):
         # loop header 
         #############
 
-        # Evaluation the starting value for the counter
+        # Allocate the variable on the stack
+        var_addr = self._alloca(node.id_name)
+
+        # Evaluate the starting value for the counter and store it
         start_val = self._codegen(node.start_expr)
+        self.builder.store(start_val, var_addr)
 
         # Save the current block to tell the loop cond where we are coming from
         loopheader_bb = self.builder.block
@@ -154,28 +165,16 @@ class LLVMCodeGenerator(object):
         self.builder.function.basic_blocks.append(loopcond_bb)
         self.builder.position_at_start(loopcond_bb)
 
-        # The incoming value depends if we are entering the block from the header or looping
-        phi = self.builder.phi(ir.DoubleType(), node.id_name)
-        phi.add_incoming(start_val, loopheader_bb)
-        # The second incoming to the phi node will be added later when we reach the actual looping.
-
-        # Within the loop, the variable is defined equal to the PHI node. If it
-        # shadows an existing variable, we will restore it later, so save it now.
+        # Set the symbol table to to reach de local counting variable. 
+        # If it shadows an existing variable, save it before and restore it later.
         oldval = self.func_symtab.get(node.id_name)
-        self.func_symtab[node.id_name] = phi
-
-        # If the step is unknown, make it increment by 1
-        if node.step_expr is None:
-            node.step_expr = Binary("+",Variable(node.id_name), Number(1.0))
-
-        # Evaluate the step    
-        nextvar = self._codegen(node.step_expr)
+        self.func_symtab[node.id_name] = var_addr
 
         # Compute the end condition
         endcond = self._codegen(node.end_expr)
         cmp = self.builder.fcmp_ordered( '!=', endcond, irdouble(0.0), 'loopcond')
 
-        # Goto body if condition satisfied, otherwise, exit.
+        # Goto loop body if condition satisfied, otherwise, exit.
         self.builder.cbranch(cmp, loopbody_bb, loopafter_bb)
 
 
@@ -190,10 +189,17 @@ class LLVMCodeGenerator(object):
         # Note that we ignore the value computed by the body.
         body_val = self._codegen(node.body)
 
-        # Tell loopcond where we are coming from before jumping to it
-        phi.add_incoming(nextvar, self.builder.block)
-        self.builder.branch(loopcond_bb)
+        # If the step is unknown, make it increment by 1
+        if node.step_expr is None:
+            node.step_expr = Binary("+",Variable(node.id_name), Number(1.0))
 
+        # Evaluate the step and update the counter    
+        nextval = self._codegen(node.step_expr)
+        self.builder.store(nextval, var_addr)
+
+        # Goto loop cond
+        self.builder.branch(loopcond_bb)
+        
 
         #############
         # loop after
@@ -211,7 +217,7 @@ class LLVMCodeGenerator(object):
             self.func_symtab[node.id_name] = oldval
 
         # The 'for' expression returns the last value of the counter
-        return phi
+        return self.builder.load(var_addr)
 
 
     def _codegen_Call(self, node):
@@ -245,10 +251,7 @@ class LLVMCodeGenerator(object):
         else:
             # Otherwise create a new function
             func = ir.Function(self.module, functype, self.module.get_unique_name(funcname))
-        # Set function argument names from AST
-        for i, arg in enumerate(func.args):
-            arg.name = node.argnames[i]
-            self.func_symtab[arg.name] = arg
+        
         return func
 
     def _codegen_Function(self, node):
@@ -260,6 +263,17 @@ class LLVMCodeGenerator(object):
         # Create the entry BB in the function and set the builder to it.
         bb_entry = func.append_basic_block('entry')
         self.builder = ir.IRBuilder(bb_entry)
+
+        # Add all arguments to the symbol table and create their allocas
+        for i, arg in enumerate(func.args):
+            arg.name = node.proto.argnames[i]
+            alloca = self._alloca(arg.name)
+            self.builder.store(arg, alloca)
+            # We dont shadow existing variables names because there are no global variables...
+            assert not self.func_symtab.get(arg.name) and "arg name redefined: " + arg.name
+            self.func_symtab[arg.name] = alloca
+
+        # Generate code for the body and then return the result
         retval = self._codegen(node.body)
         self.builder.ret(retval)
         return func

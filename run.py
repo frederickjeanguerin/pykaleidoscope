@@ -22,7 +22,7 @@ USAGE = """USAGE:
     run command  : run the command then exit       
     run          : start the REPL """
 
-def repl(optimize = True, llvmdump = False, noexec = False, parseonly = False):
+def repl(optimize = True, llvmdump = False, noexec = False, parseonly = False, verbose = False):
 
     options = locals()
     
@@ -30,9 +30,15 @@ def repl(optimize = True, llvmdump = False, noexec = False, parseonly = False):
 
     def print_eval(command, options = dict()):
         try:
-            for result in k.eval_generator(command, **options):
-                if not result is None:
-                    print(colored(result, 'green'))
+            for result in k.eval_generator(command, options):
+                if not result.value is None:
+                    print(colored(result.value, 'green'))
+                if options.get('verbose'):
+                    print()
+                    # print(colored(result.ast.dump(), 'blue'), '\n')
+                    print(colored(result.rawIR, 'green'), '\n')
+                    print(colored(result.optIR, 'magenta'), '\n')
+
         except parsing.ParseError as err:
             print(colored('Parse error: ' + str(err), "red"))                    
         except codegen.CodegenError as err:
@@ -70,8 +76,16 @@ def repl(optimize = True, llvmdump = False, noexec = False, parseonly = False):
         print('K>', command)
         print_eval(command, options)
 
+    REPL_HELP = """
+    exit, quit:     Stop and exit the program.
+    help, ?:        Print this message. 
+    options:        Print the actual REPL setting. 
+    <option_name>:  Settings are toggled by entering the option name.
+    <command>:      Other instructions are passed to Kaleidoscope. 
+    """    
+
     # Enter a REPL loop
-    print(colored('Type exit or quit to stop the program', 'yellow'))
+    print(colored('Type help or a command to be interpreted', 'yellow'))
     command = ""
     while not command in ['exit', 'quit']:
         if command in options:
@@ -79,6 +93,8 @@ def repl(optimize = True, llvmdump = False, noexec = False, parseonly = False):
             print(command, '=', options[command])
         elif command in ['options']:
             print(colored(options, 'yellow'))                  
+        elif command in ['help', '?']:
+            print(colored(REPL_HELP, 'yellow'))                  
         elif command :  
             print_eval(command, options)
         else:

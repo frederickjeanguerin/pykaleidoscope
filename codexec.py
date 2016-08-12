@@ -1,11 +1,20 @@
 from ctypes import CFUNCTYPE, c_double
+from collections import namedtuple
 from ast import *
 from parsing import *
 from codegen import *
 
+Result = namedtuple("Result", ['value', 'ast', 'rawIR', 'optIR'])
+
 def dump(str, filename):
+    """Dump a string to a file name."""
     with open(filename, 'w') as file:
         file.write(str)
+
+def lastIR(module, index = -1):
+    """Returns the last bunch of code added to a module. 
+    Thus gets the lastly generated IR for the top-level expression"""
+    return str(module).split('\n\n')[index]
 
 class KaleidoscopeEvaluator(object):
     """Evaluator for Kaleidoscope expressions.
@@ -24,76 +33,94 @@ class KaleidoscopeEvaluator(object):
         self.target = llvm.Target.from_default_triple()
 
 
-    def evaluate(self, codestr, optimize=True, llvmdump=False, noexec = False, parseonly = False):
-        return next(self.eval_generator(codestr, optimize, llvmdump, noexec, parseonly))
+    def evaluate(self, codestr, options = dict()):
+        """Evaluates only the first top level expression in codestr.
+        Assume there is only one expression. 
+        To evaluate all expressions, use eval_generator."""
+        return next(self.eval_generator(codestr, options)).value
 
-    def eval_generator(self, codestr, optimize=True, llvmdump=False, noexec = False, parseonly = False):
-        """Evaluate code in codestr.
-        Returns None for definitions and externs, and the evaluated expression
+    def eval_generator(self, codestr, options = dict()):
+        """Iterator that evaluates all top level expression in codestr.
+        Yield a namedtuple Result with None for definitions and externs, and the evaluated expression
         value for toplevel expressions.
+        """
+        for ast in Parser().parse_generator(codestr):
+            yield self._eval_ast(ast, **options)
 
-        optimize: activate optimization
+    def _eval_ast(self, ast, optimize=True, llvmdump=False, noexec = False, parseonly = False, verbose = False):
+        """ 
+        Evaluate a single top level expression given in ast form
+        
+            optimize: activate optimizations
 
-        llvmdump: generated code will be dumped prior to execution.
+            llvmdump: generated IR and assembly code will be dumped prior to execution.
 
-        noexec: the code will be generated but not executed.
+            noexec: the code will be generated but not executed. Yields non-optimized IR.
 
-        parseonly: the code will only be parsed
+            parseonly: the code will only be parsed. Yields an AST dump.
+
+            verbose: yields a quadruplet tuple: result, AST, non-optimized IR, optimized IR
         
         """
-        # Parse the given code 
-        for ast in Parser().parse_generator(codestr):
-            if parseonly:
-                yield ast.dump()
-                continue
+        rawIR = None
+        optIR = None
+        if parseonly:
+            return Result(ast.dump(), ast, rawIR, optIR)
 
-            # Generate code
-            self.codegen.generate_code(ast)
-            if noexec:
-                yield str(self.codegen.module).split('\n\n')[-1]
-                continue
+        # Generate code
+        self.codegen.generate_code(ast)
+        if noexec or verbose:
+            rawIR = lastIR(self.codegen.module)
 
-            if llvmdump: 
-                dump(str(self.codegen.module), '__dump__unoptimized.ll')
+        if noexec:
+            return Result(rawIR, ast, rawIR, optIR)
 
-            # If we're evaluating a definition or extern declaration, don't do
-            # anything else. If we're evaluating an anonymous wrapper for a toplevel
-            # expression, JIT-compile the module and run the function to get its
-            # result.
-            if not (isinstance(ast, Function) and ast.is_anonymous()):
-                yield None
-                continue
+        if llvmdump: 
+            dump(str(self.codegen.module), '__dump__unoptimized.ll')
 
-            # Convert LLVM IR into in-memory representation
-            llvmmod = llvm.parse_assembly(str(self.codegen.module))
-            llvmmod.verify()
+        # If we're evaluating a definition or extern declaration, don't do
+        # anything else. If we're evaluating an anonymous wrapper for a toplevel
+        # expression, JIT-compile the module and run the function to get its
+        # result.
+        def_or_extern = not (isinstance(ast, Function) and ast.is_anonymous())
+        if def_or_extern and not verbose:
+            return Result(None, ast, rawIR, optIR)
 
-            # Optimize the module
-            if optimize:
-                pmb = llvm.create_pass_manager_builder()
-                pmb.opt_level = 2
-                pm = llvm.create_module_pass_manager()
-                pmb.populate(pm)
-                pm.run(llvmmod)
+        # Convert LLVM IR into in-memory representation and verify the code
+        llvmmod = llvm.parse_assembly(str(self.codegen.module))
+        llvmmod.verify()
 
-                if llvmdump:
-                    dump(str(llvmmod), '__dump__optimized.ll')
+        # Optimize the module
+        if optimize:
+            pmb = llvm.create_pass_manager_builder()
+            pmb.opt_level = 2
+            pm = llvm.create_module_pass_manager()
+            pmb.populate(pm)
+            pm.run(llvmmod)
 
-            # Create a MCJIT execution engine to JIT-compile the module. Note that
-            # ee takes ownership of target_machine, so it has to be recreated anew
-            # each time we call create_mcjit_compiler.
-            target_machine = self.target.create_target_machine()
-            with llvm.create_mcjit_compiler(llvmmod, target_machine) as ee:
-                ee.finalize_object()
+            if llvmdump:
+                dump(str(llvmmod), '__dump__optimized.ll')
 
-                if llvmdump:
-                    dump(target_machine.emit_assembly(llvmmod), '__dump__assembler.asm')
-                    print(colored("Code dumped in local directory", 'yellow'))
+        if verbose:
+            optIR = lastIR(llvmmod, -2)
+            if def_or_extern:
+                return Result(None, ast, rawIR, optIR)
 
-                fptr = CFUNCTYPE(c_double)(ee.get_function_address(ast.proto.name))
+        # Create a MCJIT execution engine to JIT-compile the module. Note that
+        # ee takes ownership of target_machine, so it has to be recreated anew
+        # each time we call create_mcjit_compiler.
+        target_machine = self.target.create_target_machine()
+        with llvm.create_mcjit_compiler(llvmmod, target_machine) as ee:
+            ee.finalize_object()
 
-                result = fptr()
-                yield result
+            if llvmdump:
+                dump(target_machine.emit_assembly(llvmmod), '__dump__assembler.asm')
+                print(colored("Code dumped in local directory", 'yellow'))
+
+            fptr = CFUNCTYPE(c_double)(ee.get_function_address(ast.proto.name))
+
+            result = fptr()
+            return Result(result, ast, rawIR, optIR) 
 
     def _add_builtins(self, module):
         # The C++ tutorial adds putchard() simply by defining it in the host C++
