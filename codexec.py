@@ -1,5 +1,7 @@
 from ctypes import CFUNCTYPE, c_double
 from collections import namedtuple
+import colorama ; colorama.init()
+from termcolor import colored
 from ast import *
 from parsing import *
 from codegen import *
@@ -23,15 +25,39 @@ class KaleidoscopeEvaluator(object):
     JIT compilation occurs. When a toplevel expression is evaluated, the whole
     module is JITed and the result of the expression is returned.
     """
-    def __init__(self):
+    def __init__(self, basiclib_file = None):
         llvm.initialize()
         llvm.initialize_native_target()
         llvm.initialize_native_asmprinter()
 
+        self.basiclib_file = basiclib_file
+        self.target = llvm.Target.from_default_triple()
+        self.reset()
+
+    def reset(self, history = []):
+        self._reset_base();
+
+        if self.basiclib_file:
+            # Load basic language library
+            try:
+                with open(self.basiclib_file) as file:
+                    for result in self.eval_generator(file.read()): pass
+            except (FileNotFoundError, ParseError, CodegenError):
+                print(colored("Could not charge basic library:", 'red'), self.basiclib_file)
+                self._reset_base()
+
+        if history:       
+            # Run history 
+            try:
+                for ast in history: 
+                    self._eval_ast(ast)
+            except CodegenError:
+                print(colored("Could not run history:", 'red'), self.basiclib_file)
+                self._reset_base()
+
+    def _reset_base(self):
         self.codegen = LLVMCodeGenerator()
         self._add_builtins(self.codegen.module)
-        self.target = llvm.Target.from_default_triple()
-
 
     def evaluate(self, codestr, options = dict()):
         """Evaluates only the first top level expression in codestr.
@@ -236,6 +262,50 @@ class TestEvaluator(unittest.TestCase):
         self.assertEqual(e.evaluate('!10 % !20'), 10)
         self.assertEqual(e.evaluate('^(!10 % !20)'), 100)
 
+    def test_var_expr1(self):
+        e = KaleidoscopeEvaluator()
+        e.evaluate('''
+            def foo(x y z)
+                var s1 = x + y, s2 = z + y in
+                    s1 * s2
+            ''')
+        self.assertEqual(e.evaluate('foo(1, 2, 3)'), 15)
+
+    def test_var_expr2(self):
+        e = KaleidoscopeEvaluator()
+        e.evaluate('def binary : 1 (x y) y')
+        e.evaluate('''
+            def foo(step)
+                var accum in
+                    (for i = 0, i < 10, i + step in
+                        accum = accum + i) 
+                    : accum
+            ''')
+        self.assertEqual(e.evaluate('foo(2)'), 20)
+
+    def test_nested_var_exprs(self):
+        e = KaleidoscopeEvaluator()
+        e.evaluate('''
+            def foo(x y z)
+                var s1 = x + y, s2 = z + y in
+                    var s3 = s1 * s2 in
+                        s3 * 100
+            ''')
+        self.assertEqual(e.evaluate('foo(1, 2, 3)'), 1500)
+
+    def test_assignments(self):
+        e = KaleidoscopeEvaluator()
+        e.evaluate('def binary : 1 (x y) y')
+        e.evaluate('''
+            def foo(a b)
+                var s, p, r in
+                   s = a + b :
+                   p = a * b :
+                   r = s + 100 * p :
+                   r
+            ''')
+        self.assertEqual(e.evaluate('foo(2, 3)'), 605)
+        self.assertEqual(e.evaluate('foo(10, 20)'), 20030)
 
 if __name__ == '__main__':
 

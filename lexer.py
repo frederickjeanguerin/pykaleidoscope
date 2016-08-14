@@ -20,6 +20,7 @@ class TokenKind(Enum):
     IN = -107
     BINARY = -108
     UNARY = -109
+    VAR = -110
 
 
 Token = namedtuple('Token', 'kind value')

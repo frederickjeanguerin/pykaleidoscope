@@ -80,6 +80,19 @@ class For(Expr):
             self.body.flatten()
         ]    
 
+class VarIn(Expr):
+    def __init__(self, vars, body):
+        # vars is a sequence of (name, expr) pairs
+        self.vars = vars
+        self.body = body
+
+    def flatten(self):
+        return [
+            self.__class__.__name__, 
+            [[var[0], var[1].flatten() if var[1] else None] for var in self.vars], 
+            self.body.flatten()
+        ]  
+
 _ANONYMOUS = "_ANONYMOUS."
 
 DEFAULT_PREC = 30

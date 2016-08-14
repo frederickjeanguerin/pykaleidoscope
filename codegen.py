@@ -49,14 +49,30 @@ class LLVMCodeGenerator(object):
     def _codegen_Number(self, node):
         return irdouble(float(node.val))
 
-    def _codegen_Variable(self, node):
+    def _varaddr(self, varname):
         try:
-            var_addr = self.func_symtab[node.name]
-            return self.builder.load(var_addr, node.name)
+            return self.func_symtab[varname]
         except KeyError:
-            raise CodegenError("Undefined variable: " + node.name)    
+            raise CodegenError("Undefined variable: " + varname)    
+            
+
+    def _codegen_Variable(self, node):
+        return self.builder.load(self._varaddr(node.name), node.name)
+
+    def _codegen_Assignment(self, lhs, rhs):
+        if not isinstance(lhs, Variable):
+            raise CodegenError('lhs of "=" must be a variable')
+        value = self._codegen(rhs)
+        self.builder.store(value, self._varaddr(lhs.name))
+        return value
 
     def _codegen_Binary(self, node):
+
+        # Assignment is handled specially because it doesn't follow the general
+        # recipe of binary ops.
+        if node.op == '=':
+            return self._codegen_Assignment(node.lhs, node.rhs)
+
         lhs = self._codegen(node.lhs)
         rhs = self._codegen(node.rhs)
 
@@ -250,7 +266,7 @@ class LLVMCodeGenerator(object):
                     'Redifinition with different number of arguments')
         else:
             # Otherwise create a new function
-            func = ir.Function(self.module, functype, self.module.get_unique_name(funcname))
+            func = ir.Function(self.module, functype, funcname)
         
         return func
 
@@ -260,7 +276,7 @@ class LLVMCodeGenerator(object):
         self.func_symtab = {}
         # Create the function skeleton from the prototype.
         func = self._codegen(node.proto)
-        # Create the entry BB in the function and set the builder to it.
+        # Create the entry BB in the function and set a new builder to it.
         bb_entry = func.append_basic_block('entry')
         self.builder = ir.IRBuilder(bb_entry)
 
@@ -276,7 +292,6 @@ class LLVMCodeGenerator(object):
         # Generate code for the body and then return the result
         retval = self._codegen(node.body)
         self.builder.ret(retval)
-        return func
 
     def _codegen_Unary(self, node):
         operand = self._codegen(node.rhs)
@@ -285,7 +300,40 @@ class LLVMCodeGenerator(object):
             raise CodegenError("Undefined unary operator: " + node.op)
         return self.builder.call(func, [operand], 'unop')
 
+    def _codegen_VarIn(self, node):
+        old_bindings = []
+
+        for name, init in node.vars:
+            # Emit the initializer before adding the variable to scope. This
+            # prevents the initializer from referencing the variable itself.
+            if init is not None:
+                init_val = self._codegen(init)
+            else:
+                init_val = ir.Constant(ir.DoubleType(), 0.0)
+
+            # Create var on stack and initialize it.
+            var_addr = self._alloca(name)
+            self.builder.store(init_val, var_addr)
+
+            # Put var in symbol table; remember old bindings if any.
+            old_bindings.append(self.func_symtab.get(name))
+            self.func_symtab[name] = var_addr
+
+        # Now all the vars are in scope. Codegen the body.
+        body_val = self._codegen(node.body)
+
+        # Restore the old bindings.
+        for i, (name, _) in enumerate(node.vars):
+            if old_bindings[i] is not None:
+                self.func_symtab[name] = old_bindings[i]
+            else:
+                del self.func_symtab[name]
+
+        return body_val
+
+
 if __name__ == '__main__':
 
     import run
     run.repl(noexec = True) 
+    

@@ -46,7 +46,12 @@ class Parser(object):
             raise ParseError('Expected "{0}"'.format(expected_kind))
         self._get_next_token()
 
-    _precedence_map = {'<': 10, '+': 20, '-': 20, '*': 40}
+    _precedence_map = {
+        '=': 2,
+        '<': 10, 
+        '+': 20, 
+        '-': 20, 
+        '*': 40}
 
     def _cur_tok_precedence(self):
         """Get the operator precedence of the current token."""
@@ -119,6 +124,8 @@ class Parser(object):
             return self._parse_if_expr()
         elif self.cur_tok.kind == TokenKind.FOR:
             return self._parse_for_expr()
+        elif self.cur_tok.kind == TokenKind.VAR:
+            return self._parse_var_expr()            
         elif self.cur_tok.kind == TokenKind.OPERATOR:
             if self.cur_tok.value in Parser.PUNCTUATORS :
                 raise ParseError('Expression expected but met with: ' + self.cur_tok.value)
@@ -157,6 +164,31 @@ class Parser(object):
         self._match(TokenKind.IN)
         body = self._parse_expression()
         return For(id_name, start_expr, end_expr, step_expr, body)
+
+    # varexpr ::= 'var' ( identifier ('=' expr)? )+ 'in' expr
+    def _parse_var_expr(self):
+        self._get_next_token()  # consume the 'var'
+        vars = []
+
+        # At least one variable name is required
+        if self.cur_tok.kind != TokenKind.IDENTIFIER:
+            raise ParseError('expected identifier after "var"')
+
+        while self.cur_tok.kind != TokenKind.IN:
+            name = self.cur_tok.value
+            self._get_next_token()  # consume the identifier
+
+            # Parse the optional initializer
+            if self._cur_tok_is_operator('='):
+                self._get_next_token()  # consume the '='
+                init = self._parse_expression()
+            else:
+                init = None
+            vars.append((name, init))
+
+        self._match(TokenKind.IN)
+        body = self._parse_expression()
+        return VarIn(vars, body)
 
     # binoprhs ::= (<binop> primary)*
     def _parse_binop_rhs(self, expr_prec, lhs):
