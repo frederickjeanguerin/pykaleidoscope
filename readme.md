@@ -50,8 +50,12 @@ As is, this language and interpreter has many limitations.
 * There are no global variables, only locals.
 * The only I/O function is `putchard(ascii_code)`, which outputs a single character on screen given its ascii code.
 * The only type is `double`, so there is no `int`, `char` or `string`. 
+* If an external function is declared but called while not available, the program will crash with an error message but no exception. I guess Python is not able to catch this deep below LLVM error and trigger an Exception.
 
 ## History
+
+### Version 0.1.2
+* Assignment operator `=` is now right associative, so `x = y = 9` now works just fine, assigning both `x` and `y` to `9`.
 
 ### Version 0.1.1
 * Added C functions from math.h at engine startup.

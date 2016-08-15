@@ -86,7 +86,7 @@ class LLVMCodeGenerator(object):
             cmp = self.builder.fcmp_unordered('<', lhs, rhs, 'ltop')
             return self.builder.uitofp(cmp, ir.DoubleType(), 'ltoptodouble')
         else:
-            # Note one of the predefined operators, so it must be a user-defined one.
+            # Not one of the predefined operators, so it must be a user-defined one.
             # Emit a call to it.
             func = self.module.get_global('binary{0}'.format(node.op))
             if func is None:

@@ -308,6 +308,17 @@ class TestEvaluator(unittest.TestCase):
         self.assertEqual(e.evaluate('foo(2, 3)'), 605)
         self.assertEqual(e.evaluate('foo(10, 20)'), 20030)
 
+    def test_triple_assignment(self):
+        e = KaleidoscopeEvaluator()
+        e.evaluate('def binary : 1 (x y) y')
+        e.evaluate('''
+            def foo(a)
+                var x, y, z in
+                   x = y = z = a 
+                   : x + 2 * y + 3 * z
+            ''')
+        self.assertEqual(e.evaluate('foo(5)'), 30)
+
 if __name__ == '__main__':
 
     import run

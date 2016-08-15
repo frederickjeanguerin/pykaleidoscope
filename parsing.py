@@ -1,9 +1,44 @@
 from lexer import *
 from ast import *
+from collections import namedtuple
+
+@unique
+class Associativity(Enum):
+    UNDEFINED = 0
+    LEFT = 1
+    RIGHT = 2 
+
+BinOpInfo = namedtuple('BinOpInfo', ['precedence', 'associativity'])
+
+BUILTIN_OP = {
+    '=': BinOpInfo(2, Associativity.RIGHT),
+    '<': BinOpInfo(10, Associativity.LEFT), 
+    '+': BinOpInfo(20, Associativity.LEFT), 
+    '-': BinOpInfo(20, Associativity.LEFT), 
+    '*': BinOpInfo(40, Associativity.LEFT)}
+
+FALSE_BINOP_INFO = BinOpInfo(-1, Associativity.UNDEFINED)
+
+def builtin_operators():
+    return sorted(BUILTIN_OP.keys())  
+
+_binop_map = dict(BUILTIN_OP)
+
+def binop_info(tok):
+    kind, value = tok
+    try:
+        return _binop_map[value] 
+    except KeyError:
+        if kind == TokenKind.OPERATOR and value not in Parser.PUNCTUATORS:
+            raise ParseError("Undefined operator: " + value)
+        # Return a false binop info that has no precedence    
+        return FALSE_BINOP_INFO
+
+def set_binop_info(op, precedence, associativity):
+    _binop_map[op] = BinOpInfo(precedence, associativity)
 
 
 class ParseError(Exception): pass
-
 
 class Parser(object):
     """Parser for the Kaleidoscope language.
@@ -44,28 +79,8 @@ class Parser(object):
             raise ParseError('Expected "{0}" but got "{1}"'.format(expected_value, self.cur_tok.value))
         elif expected_kind != self.cur_tok.kind:
             raise ParseError('Expected "{0}"'.format(expected_kind))
-        self._get_next_token()
+        self._get_next_token()  
 
-    _precedence_map = {
-        '=': 2,
-        '<': 10, 
-        '+': 20, 
-        '-': 20, 
-        '*': 40}
-
-    @staticmethod    
-    def defined_operators():
-        return sorted(Parser._precedence_map.keys())    
-
-    def _cur_tok_precedence(self):
-        """Get the operator precedence of the current token."""
-        kind, value = self.cur_tok
-        try:
-            return Parser._precedence_map[value]
-        except KeyError:
-            if kind == TokenKind.OPERATOR and value not in Parser.PUNCTUATORS:
-                raise ParseError("Undefined operator: " + value)
-            return -1
 
     def _cur_tok_is_operator(self, op):
         """Query whether the current token is the operator op"""
@@ -201,7 +216,7 @@ class Parser(object):
         lhs: AST of the left-hand-side.
         """
         while True:
-            cur_prec = self._cur_tok_precedence()
+            cur_prec, cur_assoc = binop_info(self.cur_tok)
             # If this is a binary operator with precedence lower than the
             # currently parsed sub-expression, bail out. If it binds at least
             # as tightly, keep going.
@@ -213,15 +228,21 @@ class Parser(object):
             self._get_next_token()  # consume the operator
             rhs = self._parse_primary()
 
-            next_prec = self._cur_tok_precedence()
-            # There are three options:
+            next_prec, next_assoc = binop_info(self.cur_tok)
+            # There are four options:
             # 1. next_prec > cur_prec: we need to make a recursive call
-            # 2. next_prec == cur_prec: no need for a recursive call, the next
+            # 2. next_prec == cur_prec and operator is left-associative: 
+            #    no need for a recursive call, the next
             #    iteration of this loop will handle it.
-            # 3. next_prec < cur_prec: no need for a recursive call, combine
+            # 3. next_prec == cur_prec and operator is right-associative:
+            #    make a recursive call 
+            # 4. next_prec < cur_prec: no need for a recursive call, combine
             #    lhs and the next iteration will immediately bail out.
             if cur_prec < next_prec:
                 rhs = self._parse_binop_rhs(cur_prec + 1, rhs)
+
+            if cur_prec == next_prec and next_assoc == Associativity.RIGHT:
+                rhs = self._parse_binop_rhs(cur_prec, rhs)
 
             # Merge lhs/rhs
             lhs = Binary(op, lhs, rhs)
@@ -271,7 +292,7 @@ class Parser(object):
 
             # Add the new operator to our precedence table so we can properly
             # parse it.
-            self._precedence_map[name[-1]] = prec
+            set_binop_info(name[-1], prec, Associativity.LEFT)
 
         self._match(TokenKind.OPERATOR, '(')
         argnames = []
@@ -423,6 +444,15 @@ class TestParser(unittest.TestCase):
                 ['Binary', '%', ['Variable', 'a'], ['Number', '20']],
                 ['Number', '5']])
 
+    def test_binop_right_associativity(self):
+        p = Parser()
+        ast = p.parse_toplevel('x = y = 10 + 5')
+        self._assert_body(ast,
+            ['Binary', '=',
+                ['Variable', 'x'],
+                ['Binary', '=',
+                    ['Variable', 'y'],
+                    ['Binary', '+', ['Number', '10'], ['Number', '5']]]])
 
 #---- Typical example use ----#
 

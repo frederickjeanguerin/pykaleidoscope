@@ -3,7 +3,7 @@ from termcolor import colored, cprint
 colorama.init()
 import parsing, codegen, codexec
 
-VERSION = "0.1.1"
+VERSION = "0.1.2"
 
 EXAMPLES = [
     'def add(a b) a + b',
@@ -95,14 +95,14 @@ def print_funlist(funlist):
 
 def print_functions(k):
     # Operators
-    print(colored('\nDefined operators:', 'blue'), *parsing.Parser.defined_operators())
+    print(colored('\nBuiltin operators:', 'blue'), *parsing.builtin_operators())
 
     # User vs extern functions
     sorted_functions = sorted(k.codegen.module.functions, key=lambda fun: fun.name)
     user_functions = filter(lambda f : not f.is_declaration, sorted_functions)
     extern_functions = filter(lambda f : f.is_declaration, sorted_functions)
 
-    cprint('\nUser defined functions:\n', 'blue')
+    cprint('\nUser defined functions and operators:\n', 'blue')
     print_funlist(user_functions)
 
     cprint('\nExtern functions:\n', 'blue')
