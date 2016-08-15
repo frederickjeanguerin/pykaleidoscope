@@ -1,9 +1,9 @@
-import sys
-import copy
-import colorama
-from termcolor import colored
+import sys, copy, colorama, llvmlite
+from termcolor import colored, cprint
 colorama.init()
 import parsing, codegen, codexec
+
+VERSION = "0.1.1"
 
 EXAMPLES = [
     'def add(a b) a + b',
@@ -16,44 +16,65 @@ EXAMPLES = [
     'alphabet(1,26)'
 ]
 
-USAGE = """USAGE: 
-    example    : Run some code examples.
-    exit, quit : Stop and exit the program.
-    help, ?    : Show this message 
-    options    : Print the actual options. 
-    reset      : Reset the interpreter. 
-    test       : Run unit tests       
-    <code>     : Compile and run the given code       
-    <file>     : Run the selected file .kal        
-    <option>   : Toggle the given option on/off."""
+USAGE = """
+USAGE: From the K> prompt, either type some kaleidoscope code or 
+    enter one the following special commands (all preceded by a dot sign):
+
+    .example      : Run some code examples.
+    .exit or exit : Stop and exit the program.
+    .functions    : List all available language functions and operators 
+    .help or help : Show this message. 
+    .options      : Print the actual options settings. 
+    .reset        : Reset the interpreter. 
+    .test or test : Run unit tests.       
+    .version      : Print version information.      
+    .<file>       : Run the given file .kal        
+    .<option>     : Toggle the given option on/off.
+
+These commands are also available directly from the command line, for example: 
+
+    run 2 + 3
+    run test
+    run .myfile.kal
+    
+On the command line, the initial dot sign can be replaced with a double dash: 
+    
+    run --test
+    run --myfile.kal
+    """
 
 history = []
+
+def errprint(msg):
+    cprint(msg, 'red', file=sys.stderr)
 
 def print_eval(k, code, options = dict()):
     """Evaluate the given code with evaluator engine k using the given options.
     Print the evaluation results. """
     results = k.eval_generator(code, options);
     try:
-        for result in result :
+        for result in results :
             if not result.value is None:
-                print(colored(result.value, 'green'))
+                cprint(result.value, 'green')
             else:
                 history.append(result.ast)
                     
             if options.get('verbose'):
                 print()
                 # print(colored(result.ast.dump(), 'blue'), '\n')
-                print(colored(result.rawIR, 'green'), '\n')
-                print(colored(result.optIR, 'magenta'), '\n')
+                cprint(result.rawIR, 'green')
+                print()
+                cprint(result.optIR, 'magenta')
+                print()
     except parsing.ParseError as err:
-        print(colored('Parse error: ' + str(err), "red"))                    
+        errprint('Parse error: ' + str(err))                    
     except codegen.CodegenError as err:
-        print(colored('Eval error: ' + str(err), 'red'))
+        errprint('Eval error: ' + str(err))
         # Reset the interpreter because codegen is now corrupted.
         k.reset(history)
     except Exception as err:
-        print(colored(str(type(err)) + ' : ' + str(err), 'red'))
-        print(colored(' Aborting... ', 'yellow'))
+        errprint(str(type(err)) + ' : ' + str(err))
+        print(' Aborting... ')
         raise
 
 def run_tests():
@@ -61,16 +82,44 @@ def run_tests():
     tests = unittest.defaultTestLoader.discover(".", "*.py")    
     unittest.TextTestRunner().run(tests)
 
-def run_command(k, command, options):
+
+def print_funlist(funlist):
+    for func in funlist:
+        description = "{:>6} {:<20} ({})".format(
+            'extern' if func.is_declaration else '   def',
+            func.name,
+            ' '.join((arg.name for arg in func.args)) 
+        )
+        cprint(description, 'yellow')
+
+
+def print_functions(k):
+    # Operators
+    print(colored('\nDefined operators:', 'blue'), *parsing.Parser.defined_operators())
+
+    # User vs extern functions
+    sorted_functions = sorted(k.codegen.module.functions, key=lambda fun: fun.name)
+    user_functions = filter(lambda f : not f.is_declaration, sorted_functions)
+    extern_functions = filter(lambda f : f.is_declaration, sorted_functions)
+
+    cprint('\nUser defined functions:\n', 'blue')
+    print_funlist(user_functions)
+
+    cprint('\nExtern functions:\n', 'blue')
+    print_funlist(extern_functions)
+
+def run_repl_command(k, command, options):
     if command in options:
         options[command] = not options[command]
         print(command, '=', options[command])
     elif command in ['example', 'examples']:
         run_examples(k, EXAMPLES, options)
-    elif command in ['help', '?']:
-        print(colored(USAGE, 'yellow'))                  
+    elif command in ['functions']:
+        print_functions(k)                  
+    elif command in ['help', '?', '']:
+        print(USAGE)                  
     elif command in ['options']:
-        print(colored(options, 'yellow'))                  
+        print(options)                  
     elif command in ['quit', 'exit', 'stop']:
         sys.exit()
     elif command in ['reset']:
@@ -78,17 +127,31 @@ def run_command(k, command, options):
         history = []
     elif command in ['test', 'tests']:
         run_tests()
+    elif command in ['version']:
+        print('Python :', sys.version)
+        print('LLVM   :', '.'.join((str(n) for n in llvmlite.binding.llvm_version_info)))
+        print('pykal  :', VERSION)
+        cprint('\nFree software by Frederic Guerin', 'magenta')
     elif command :
-        # If the command is a filename, open it and run its content  
+        # Here the command should be a filename, open it and run its content  
         try: 
             with open(command) as file:
-                command = file.read()
+                print_eval(k, file.read(), options)
         except FileNotFoundError:
-            pass
-        print_eval(k, command, options)
+            errprint("File not found: " + command)
+
+def run_command(k, command, options):
+    print(colorama.Fore.YELLOW, end='')
+    if not command:
+        pass
+    elif command in ['help', 'quit', 'exit', 'stop', 'test']:
+        run_repl_command(k, command, options)
+    elif command[0] == '.':
+        run_repl_command(k, command[1:], options)
     else:
-        # command is empty so
-        pass    
+        # command is a kaleidoscope code snippet so run it
+        print_eval(k, command, options)
+    print(colorama.Style.RESET_ALL, end='')
 
 def run_examples(k, commands, options):
     for command in commands:
@@ -102,11 +165,11 @@ def repl(optimize = True, llvmdump = False, noexec = False, parseonly = False, v
 
     # If some arguments passed in, run that command then exit        
     if len(sys.argv) >= 2 :
-        command = ' '.join(sys.argv[1:])
+        command = ' '.join(sys.argv[1:]).replace('--', '.')
         run_command(k, command, options)
     else:    
         # Enter a REPL loop
-        print(colored('Type help or a command to be interpreted', 'yellow'))
+        cprint('Type help or a command to be interpreted', 'yellow')
         command = ""
         while not command in ['exit', 'quit']:
             run_command(k, command, options)

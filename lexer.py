@@ -54,7 +54,7 @@ class Lexer(object):
             # Identifier or keyword
             if self.lastchar.isalpha():
                 id_str = ''
-                while self.lastchar.isalnum():
+                while self.lastchar.isalnum() or self.lastchar == '_':
                     id_str += self.lastchar
                     self._advance()
                 if get_keyword(id_str):

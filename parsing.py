@@ -41,7 +41,7 @@ class Parser(object):
         """
         if (expected_kind == TokenKind.OPERATOR and
             not self._cur_tok_is_operator(expected_value)):
-            raise ParseError('Expected "{0}"'.format(expected_value))
+            raise ParseError('Expected "{0}" but got "{1}"'.format(expected_value, self.cur_tok.value))
         elif expected_kind != self.cur_tok.kind:
             raise ParseError('Expected "{0}"'.format(expected_kind))
         self._get_next_token()
@@ -52,6 +52,10 @@ class Parser(object):
         '+': 20, 
         '-': 20, 
         '*': 40}
+
+    @staticmethod    
+    def defined_operators():
+        return sorted(Parser._precedence_map.keys())    
 
     def _cur_tok_precedence(self):
         """Get the operator precedence of the current token."""

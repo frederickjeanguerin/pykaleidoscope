@@ -267,6 +267,9 @@ class LLVMCodeGenerator(object):
         else:
             # Otherwise create a new function
             func = ir.Function(self.module, functype, funcname)
+            # Name the arguments
+            for i, arg in enumerate(func.args):
+                arg.name = node.argnames[i]
         
         return func
 
@@ -282,7 +285,6 @@ class LLVMCodeGenerator(object):
 
         # Add all arguments to the symbol table and create their allocas
         for i, arg in enumerate(func.args):
-            arg.name = node.proto.argnames[i]
             alloca = self._alloca(arg.name)
             self.builder.store(arg, alloca)
             # We dont shadow existing variables names because there are no global variables...

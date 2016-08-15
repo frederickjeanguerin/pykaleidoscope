@@ -1,8 +1,8 @@
 # Predefined Kaleidoscope operators and functions
 
 # Sequence operator
-def binary: 1 (x y) 
-    y
+def binary: 1 (lhsexpr rhsexpr) 
+    rhsexpr
 
 # Logical and
 def binary & 5 (P Q) 
@@ -22,7 +22,8 @@ def unary - (x)
 def binary > 10 (a b) 
     b < a        
 
-def binary = 10 (a b) 
+# Equality
+def binary ? 10 (a b) 
     !(a < b) & !(b < a)
 
 def max(a b) 
@@ -42,3 +43,30 @@ def factorial(n)
 # def binary ≥ 10 (a b) !(a < b)        
 # def binary ≤ 10 (a b) !(b < a)
 # def binary ≠ 10 (a b) !(a = b)	        
+
+# from c <math.h>
+
+extern fabs(x)
+extern fmod(number modulo)
+extern fmax(x y)
+extern fmin(x y)
+extern exp(exponent_of_e)
+extern exp2(exponent_of_2)
+extern log(power_of_e)
+extern log2(power_of_2)
+extern log10(power_of_10)
+extern sqrt(square)
+extern cbrt(cube)
+extern hypot(a b)
+extern power(base exponent)
+extern sin(angle_in_radian)
+extern cos(angle_in_radian)
+extern tan(angle_in_radian)
+extern asin(sin)
+extern acos(cos)
+extern atan(tan)
+extern ceil(x)
+extern floor(x)
+extern trunc(x)
+extern round(x)
+

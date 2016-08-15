@@ -1,7 +1,7 @@
 from ctypes import CFUNCTYPE, c_double
 from collections import namedtuple
 import colorama ; colorama.init()
-from termcolor import colored
+from termcolor import colored, cprint
 from ast import *
 from parsing import *
 from codegen import *
@@ -42,9 +42,10 @@ class KaleidoscopeEvaluator(object):
             try:
                 with open(self.basiclib_file) as file:
                     for result in self.eval_generator(file.read()): pass
-            except (FileNotFoundError, ParseError, CodegenError):
+            except (FileNotFoundError, ParseError, CodegenError) as err:
                 print(colored("Could not charge basic library:", 'red'), self.basiclib_file)
                 self._reset_base()
+                raise
 
         if history:       
             # Run history 
