@@ -321,5 +321,5 @@ class TestEvaluator(unittest.TestCase):
 
 if __name__ == '__main__':
 
-    import run
-    run.repl()
+    import kal
+    kal.run()

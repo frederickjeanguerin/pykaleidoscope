@@ -1,9 +1,12 @@
-import sys, copy, colorama, llvmlite
+import copy, colorama, llvmlite, sys
+from importlib import reload
 from termcolor import colored, cprint
 colorama.init()
-import parsing, codegen, codexec
+import lexer, parsing, codegen, codexec
 
-VERSION = "0.1.2"
+class ReloadException(Exception): pass
+
+VERSION = "0.1.3"
 
 EXAMPLES = [
     'def add(a b) a + b',
@@ -25,7 +28,8 @@ USAGE: From the K> prompt, either type some kaleidoscope code or
     .functions    : List all available language functions and operators 
     .help or help : Show this message. 
     .options      : Print the actual options settings. 
-    .reset        : Reset the interpreter. 
+    .reload or .. : Reload the python code and restart the REPL from scratch. 
+    .reset        : Reset the interpreting engine. 
     .test or test : Run unit tests.       
     .version      : Print version information.      
     .<file>       : Run the given file .kal        
@@ -33,14 +37,14 @@ USAGE: From the K> prompt, either type some kaleidoscope code or
 
 These commands are also available directly from the command line, for example: 
 
-    run 2 + 3
-    run test
-    run .myfile.kal
+    kal 2 + 3
+    kal test
+    kal .myfile.kal
     
 On the command line, the initial dot sign can be replaced with a double dash: 
     
-    run --test
-    run --myfile.kal
+    kal --test
+    kal --myfile.kal
     """
 
 history = []
@@ -122,7 +126,14 @@ def run_repl_command(k, command, options):
         print(options)                  
     elif command in ['quit', 'exit', 'stop']:
         sys.exit()
+    elif command in ['reload', '.']:
+        reload(lexer)
+        reload(parsing)
+        reload(codegen)
+        reload(codexec)
+        raise ReloadException()
     elif command in ['reset']:
+        reload(parsing)
         k.reset()
         history = []
     elif command in ['test', 'tests']:
@@ -158,7 +169,7 @@ def run_examples(k, commands, options):
         print('K>', command)
         print_eval(k, command, options)    
 
-def repl(optimize = True, llvmdump = False, noexec = False, parseonly = False, verbose = False):
+def run(optimize = True, llvmdump = False, noexec = False, parseonly = False, verbose = False):
 
     options = locals()
     k = codexec.KaleidoscopeEvaluator('basiclib.kal')
@@ -169,14 +180,15 @@ def repl(optimize = True, llvmdump = False, noexec = False, parseonly = False, v
         run_command(k, command, options)
     else:    
         # Enter a REPL loop
-        cprint('Type help or a command to be interpreted', 'yellow')
+        cprint('Type help or a command to be interpreted', 'green')
         command = ""
         while not command in ['exit', 'quit']:
             run_command(k, command, options)
             print("K> ", end="")
             command = input().strip()
 
-
 if __name__ == '__main__':
 
-    repl()    
+    import kal
+    kal.run()
+

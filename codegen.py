@@ -336,6 +336,6 @@ class LLVMCodeGenerator(object):
 
 if __name__ == '__main__':
 
-    import run
-    run.repl(noexec = True) 
+    import kal
+    kal.run(noexec = True) 
     

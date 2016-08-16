@@ -458,5 +458,5 @@ class TestParser(unittest.TestCase):
 
 if __name__ == '__main__':
 
-    import run
-    run.repl(parseonly = True) 
+    import kal
+    kal.run(parseonly = True) 

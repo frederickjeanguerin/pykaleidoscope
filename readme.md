@@ -27,7 +27,7 @@ conda install llvmlite
 ```
 There is no need to install LLVM on its own since the llvmlite install includes a subset of LLVM which is just fine for our purposes.
 
-Then download the pykaleidoscope code in its own folder, open a command line in that folder and execute the `run.py` file to launch the kaleidoscope jit-compiler/interpreter. A prompt will show up like this `K>`. At the prompt, type `test`, to run the tests and make sure everything works well. Then, to get in touch with the power of this very simple language, run the `.mandelbrot.kal` program by simply entering its name after the prompt. The pykaleidoscope REPL will load the program, compile it in memory and then run it, which will show a very basic [Mandelbrot set](https://en.wikipedia.org/wiki/Mandelbrot_set). Well, I am not the author of that Mandelbrot stuff, since it comes from the original LLVM tutorial, but it is indeed quite a surprising realisation for such a simple language. 
+Then download the pykaleidoscope code in its own folder, open a command line in that folder and execute the `kal.py` file to launch the kaleidoscope jit-compiler/interpreter. A prompt will show up like this `K>`. At the prompt, type `test`, to run the tests and make sure everything works well. Then, to get in touch with the power of this very simple language, run the `.mandelbrot.kal` program by simply entering its name after the prompt. The pykaleidoscope REPL will load the program, compile it in memory and then run it, which will show a very basic [Mandelbrot set](https://en.wikipedia.org/wiki/Mandelbrot_set). Well, I am not the author of that Mandelbrot stuff, since it comes from the original LLVM tutorial, but it is indeed quite a surprising realisation for such a simple language. 
 
 ```
 K> test
@@ -46,13 +46,16 @@ K> exit
 
 As is, this language and interpreter has many limitations. 
 * A function cannot be defined twice, so running the same script file most likely will generate some error, aborting the script. To alleviate that, reset the engine with the command `.reset` before rerunning the script.
-* Some error messages are very uninformative, especially for script, since the lexer does not produce line and position numbering for tokens.
+* Some error messages are very uninformative, especially for scripts, since the lexer does not produce line and position numbering for tokens.
 * There are no global variables, only locals.
 * The only I/O function is `putchard(ascii_code)`, which outputs a single character on screen given its ascii code.
 * The only type is `double`, so there is no `int`, `char` or `string`. 
-* If an external function is declared but called while not available, the program will crash with an error message but no exception. I guess Python is not able to catch this deep below LLVM error and trigger an Exception.
+* If an external function is declared but called while not available, the program will crash with an error message but no exception. I guess Python is not able to catch this deep below LLVM error and to trigger an Exception.
 
 ## History
+
+### Version 0.1.3
+* The program can now reload itself from the prompt using the `.reload` command. All the changes to the code base will be taken into account.
 
 ### Version 0.1.2
 * Assignment operator `=` is now right associative, so `x = y = 9` now works just fine, assigning both `x` and `y` to `9`.
