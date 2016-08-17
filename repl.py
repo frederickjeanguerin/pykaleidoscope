@@ -3,6 +3,7 @@ from importlib import reload
 from termcolor import colored, cprint
 colorama.init()
 import lexer, parsing, codegen, codexec
+from source import *
 
 class ReloadException(Exception): pass
 
@@ -144,12 +145,13 @@ def run_repl_command(k, command, options):
         print('pykal  :', VERSION)
         cprint('\nFree software by Frederic Guerin', 'magenta')
     elif command :
-        # Here the command should be a filename, open it and run its content  
+        # Here the command should be a filename, open it and run its content
+        filename = command  
         try: 
-            with open(command) as file:
-                print_eval(k, file.read(), options)
+            with open(filename) as file:
+                print_eval(k, Source(filename, file.read()), options)
         except FileNotFoundError:
-            errprint("File not found: " + command)
+            errprint("File not found: " + filename)
 
 def run_command(k, command, options):
     print(colorama.Fore.YELLOW, end='')
@@ -161,13 +163,13 @@ def run_command(k, command, options):
         run_repl_command(k, command[1:], options)
     else:
         # command is a kaleidoscope code snippet so run it
-        print_eval(k, command, options)
+        print_eval(k, Source("prompt",command), options)
     print(colorama.Style.RESET_ALL, end='')
 
 def run_examples(k, commands, options):
     for command in commands:
         print('K>', command)
-        print_eval(k, command, options)    
+        print_eval(k, Source("examples", command), options)    
 
 def run(optimize = True, llvmdump = False, noexec = False, parseonly = False, verbose = False):
 
@@ -177,7 +179,7 @@ def run(optimize = True, llvmdump = False, noexec = False, parseonly = False, ve
     # If some arguments passed in, run that command then exit        
     if len(sys.argv) >= 2 :
         command = ' '.join(sys.argv[1:]).replace('--', '.')
-        run_command(k, command, options)
+        run_command(k, Source("commandline arguments", command), options)
     else:    
         # Enter a REPL loop
         cprint('Type help or a command to be interpreted', 'green')

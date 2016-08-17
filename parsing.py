@@ -1,6 +1,7 @@
 from lexer import *
 from ast import *
 from collections import namedtuple
+from source import *
 
 @unique
 class Associativity(Enum):
@@ -50,12 +51,9 @@ class Parser(object):
         self.cur_tok = None
 
     # toplevel ::= definition | external | expression
-    def parse_toplevel(self, buf):
-        return next(self.parse_generator(buf))
-
-    def parse_generator(self, buf):
+    def parse_generator(self, source):
         """Given a string, returns an AST node representing it."""
-        self.token_generator = Lexer(buf).tokens()
+        self.token_generator = Lexer(source).tokens()
         self.cur_tok = None
         self._get_next_token()
 
@@ -329,6 +327,8 @@ class Parser(object):
 
 #---- Some unit tests ----#
 
+def parse_toplevel(buf, parser  = Parser()):
+    return next(parser.parse_generator(Source("parsing tests", buf)))
 
 class TestParser(unittest.TestCase):
 
@@ -338,27 +338,27 @@ class TestParser(unittest.TestCase):
         self.assertEqual(toplevel.body.flatten(), expected)
 
     def test_basic(self):
-        ast = Parser().parse_toplevel('2')
+        ast = parse_toplevel('2')
         self.assertIsInstance(ast, Function)
         self.assertIsInstance(ast.body, Number)
         self.assertEqual(ast.body.val, '2')
 
     def test_basic_with_flattening(self):
-        ast = Parser().parse_toplevel('2')
+        ast = parse_toplevel('2')
         self._assert_body(ast, ['Number', '2'])
 
-        ast = Parser().parse_toplevel('foobar')
+        ast = parse_toplevel('foobar')
         self._assert_body(ast, ['Variable', 'foobar'])
 
     def test_expr_singleprec(self):
-        ast = Parser().parse_toplevel('2+ 3-4')
+        ast = parse_toplevel('2+ 3-4')
         self._assert_body(ast,
             ['Binary',
                 '-', ['Binary', '+', ['Number', '2'], ['Number', '3']],
                 ['Number', '4']])
 
     def test_expr_multiprec(self):
-        ast = Parser().parse_toplevel('2+3*4-9')
+        ast = parse_toplevel('2+3*4-9')
         self._assert_body(ast,
             ['Binary', '-',
                 ['Binary', '+',
@@ -367,7 +367,7 @@ class TestParser(unittest.TestCase):
                 ['Number', '9']])
 
     def test_expr_parens(self):
-        ast = Parser().parse_toplevel('2*(3-4)*7')
+        ast = parse_toplevel('2*(3-4)*7')
         self._assert_body(ast,
             ['Binary', '*',
                 ['Binary', '*',
@@ -376,15 +376,15 @@ class TestParser(unittest.TestCase):
                 ['Number', '7']])
 
     def test_externals(self):
-        ast = Parser().parse_toplevel('extern sin(arg)')
+        ast = parse_toplevel('extern sin(arg)')
         self.assertEqual(ast.flatten(), ['Prototype', 'sin', '(arg)'])
 
-        ast = Parser().parse_toplevel('extern Foobar(nom denom abom)')
+        ast = parse_toplevel('extern Foobar(nom denom abom)')
         self.assertEqual(ast.flatten(),
             ['Prototype', 'Foobar', '(nom denom abom)'])
 
     def test_funcdef(self):
-        ast = Parser().parse_toplevel('def foo(x) 1 + bar(x)')
+        ast = parse_toplevel('def foo(x) 1 + bar(x)')
         self.assertEqual(ast.flatten(),
             ['Function', ['Prototype', 'foo', '(x)'],
                 ['Binary', '+',
@@ -393,14 +393,14 @@ class TestParser(unittest.TestCase):
 
     def test_unary(self):
         p = Parser()
-        ast = p.parse_toplevel('def unary!(x) 0 - x')
+        ast = parse_toplevel('def unary!(x) 0 - x', p)
         self.assertIsInstance(ast, Function)
         proto = ast.proto
         self.assertIsInstance(proto, Prototype)
         self.assertTrue(proto.isoperator)
         self.assertEqual(proto.name, 'unary!')
 
-        ast = p.parse_toplevel('!a + !b - !!c')
+        ast = parse_toplevel('!a + !b - !!c', p)
         self._assert_body(ast,
             ['Binary', '-',
                 ['Binary', '+',
@@ -409,7 +409,7 @@ class TestParser(unittest.TestCase):
                 ['Unary', '!', ['Unary', '!', ['Variable', 'c']]]])
 
     def test_binary_op_no_prec(self):
-        ast = Parser().parse_toplevel('def binary $(a b) a + b')
+        ast = parse_toplevel('def binary $(a b) a + b')
         self.assertIsInstance(ast, Function)
         proto = ast.proto
         self.assertIsInstance(proto, Prototype)
@@ -418,7 +418,7 @@ class TestParser(unittest.TestCase):
         self.assertEqual(proto.name, 'binary$')
 
     def test_binary_op_with_prec(self):
-        ast = Parser().parse_toplevel('def binary% 77(a b) a + b')
+        ast = parse_toplevel('def binary% 77(a b) a + b')
         self.assertIsInstance(ast, Function)
         proto = ast.proto
         self.assertIsInstance(proto, Prototype)
@@ -429,8 +429,8 @@ class TestParser(unittest.TestCase):
     def test_binop_relative_precedence(self):
         # with precedence 77, % binds stronger than all existing ops
         p = Parser()
-        p.parse_toplevel('def binary% 77(a b) a + b')
-        ast = p.parse_toplevel('a * 10 % 5 * 10')
+        parse_toplevel('def binary% 77(a b) a + b', p)
+        ast = parse_toplevel('a * 10 % 5 * 10', p)
         self._assert_body(ast,
             ['Binary', '*',
                 ['Binary', '*',
@@ -438,15 +438,14 @@ class TestParser(unittest.TestCase):
                     ['Binary', '%', ['Number', '10'], ['Number', '5']]],
                 ['Number', '10']])
 
-        ast = p.parse_toplevel('a % 20 * 5')
+        ast = parse_toplevel('a % 20 * 5', p)
         self._assert_body(ast,
             ['Binary', '*',
                 ['Binary', '%', ['Variable', 'a'], ['Number', '20']],
                 ['Number', '5']])
 
     def test_binop_right_associativity(self):
-        p = Parser()
-        ast = p.parse_toplevel('x = y = 10 + 5')
+        ast = parse_toplevel('x = y = 10 + 5')
         self._assert_body(ast,
             ['Binary', '=',
                 ['Variable', 'x'],

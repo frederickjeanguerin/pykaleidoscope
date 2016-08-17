@@ -1,5 +1,6 @@
 from enum import * 
 from collections import namedtuple
+from source import *
 
 # Each token is a tuple of kind and value. kind is one of the enumeration values
 # in TokenKind. value is the textual value of the token in the input.
@@ -40,9 +41,11 @@ class Lexer(object):
     can be queried for tokens. The generator will emit an EOF token before
     stopping.
     """
-    def __init__(self, buf):
+    def __init__(self, source):
+        buf = source.text
         assert len(buf) >= 1
         self.buf = buf
+        self.source = source
         self.pos = 0
         self.lastchar = self.buf[0]
 
@@ -90,38 +93,42 @@ class Lexer(object):
 
 import unittest
 
+def lex(codestr):
+    return Lexer(Source("lexer tests", codestr))
+
 class TestLexer(unittest.TestCase):
+
     def _assert_toks(self, toks, kinds):
         """Assert that the list of toks has the given kinds."""
         self.assertEqual([t.kind.name for t in toks], kinds)
 
     def test_lexer_simple_tokens_and_values(self):
-        l = Lexer('a+1')
+        l = lex('a+1')
         toks = list(l.tokens())
         self.assertEqual(toks[0], Token(TokenKind.IDENTIFIER, 'a'))
         self.assertEqual(toks[1], Token(TokenKind.OPERATOR, '+'))
         self.assertEqual(toks[2], Token(TokenKind.NUMBER, '1'))
         self.assertEqual(toks[3], Token(TokenKind.EOF, ''))
 
-        l = Lexer('.1519')
+        l = lex('.1519')
         toks = list(l.tokens())
         self.assertEqual(toks[0], Token(TokenKind.NUMBER, '.1519'))
 
     def test_token_kinds(self):
-        l = Lexer('10.1 def der extern foo (')
+        l = lex('10.1 def der extern foo (')
         self._assert_toks(
             list(l.tokens()),
             ['NUMBER', 'DEF', 'IDENTIFIER', 'EXTERN', 'IDENTIFIER',
              'OPERATOR', 'EOF'])
 
-        l = Lexer('+- 1 2 22 22.4 a b2 C3d')
+        l = lex('+- 1 2 22 22.4 a b2 C3d')
         self._assert_toks(
             list(l.tokens()),
             ['OPERATOR', 'OPERATOR', 'NUMBER', 'NUMBER', 'NUMBER', 'NUMBER',
              'IDENTIFIER', 'IDENTIFIER', 'IDENTIFIER', 'EOF'])
 
     def test_skip_whitespace_comments(self):
-        l = Lexer('''
+        l = lex('''
             def foo # this is a comment
             # another comment
             \t\t\t10

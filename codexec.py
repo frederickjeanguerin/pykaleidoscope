@@ -5,6 +5,7 @@ from termcolor import colored, cprint
 from ast import *
 from parsing import *
 from codegen import *
+from source import *
 
 Result = namedtuple("Result", ['value', 'ast', 'rawIR', 'optIR'])
 
@@ -41,7 +42,7 @@ class KaleidoscopeEvaluator(object):
             # Load basic language library
             try:
                 with open(self.basiclib_file) as file:
-                    for result in self.eval_generator(file.read()): pass
+                    for result in self.eval_generator(Source(self.basiclib_file, file.read())): pass
             except (FileNotFoundError, ParseError, CodegenError) as err:
                 print(colored("Could not charge basic library:", 'red'), self.basiclib_file)
                 self._reset_base()
@@ -62,16 +63,16 @@ class KaleidoscopeEvaluator(object):
 
     def evaluate(self, codestr, options = dict()):
         """Evaluates only the first top level expression in codestr.
-        Assume there is only one expression. 
+        Assume there is only one expression. Used by unit tests only. 
         To evaluate all expressions, use eval_generator."""
-        return next(self.eval_generator(codestr, options)).value
+        return next(self.eval_generator(Source("test", codestr), options)).value
 
-    def eval_generator(self, codestr, options = dict()):
-        """Iterator that evaluates all top level expression in codestr.
+    def eval_generator(self, source, options = dict()):
+        """Iterator that evaluates all top level expression in source.
         Yield a namedtuple Result with None for definitions and externs, and the evaluated expression
         value for toplevel expressions.
         """
-        for ast in Parser().parse_generator(codestr):
+        for ast in Parser().parse_generator(source):
             yield self._eval_ast(ast, **options)
 
     def _eval_ast(self, ast, optimize=True, llvmdump=False, noexec = False, parseonly = False, verbose = False):
