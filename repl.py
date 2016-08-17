@@ -133,6 +133,8 @@ def run_repl_command(k, command, options):
         reload(codegen)
         reload(codexec)
         raise ReloadException()
+    elif command in ['repl']:
+        pass
     elif command in ['reset']:
         reload(parsing)
         k.reset()
@@ -171,6 +173,14 @@ def run_examples(k, commands, options):
         print('K>', command)
         print_eval(k, Source("examples", command), options)    
 
+def enter_repl(k, options):
+    cprint('Type help or a command to be interpreted', 'green')
+    command = ""
+    while not command in ['exit', 'quit']:
+        run_command(k, command, options)
+        print("K> ", end="")
+        command = input().strip()
+
 def run(optimize = True, llvmdump = False, noexec = False, parseonly = False, verbose = False):
 
     options = locals()
@@ -179,15 +189,12 @@ def run(optimize = True, llvmdump = False, noexec = False, parseonly = False, ve
     # If some arguments passed in, run that command then exit        
     if len(sys.argv) >= 2 :
         command = ' '.join(sys.argv[1:]).replace('--', '.')
-        run_command(k, Source("commandline arguments", command), options)
-    else:    
-        # Enter a REPL loop
-        cprint('Type help or a command to be interpreted', 'green')
-        command = ""
-        while not command in ['exit', 'quit']:
+        if command not in ['.repl', 'repl'] :
             run_command(k, command, options)
-            print("K> ", end="")
-            command = input().strip()
+            return
+
+    enter_repl(k, options)
+
 
 if __name__ == '__main__':
 

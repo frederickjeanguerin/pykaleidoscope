@@ -4,7 +4,7 @@ import repl
 def run(**options):
     while(True):
         try:
-            repl.run(options)
+            repl.run(**options)
             break
         except repl.ReloadException:
             reload(repl)

@@ -1,6 +1,7 @@
+from collections import namedtuple
 from lexer import *
 from ast import *
-from collections import namedtuple
+from tok import *
 from source import *
 
 @unique
@@ -26,12 +27,11 @@ def builtin_operators():
 _binop_map = dict(BUILTIN_OP)
 
 def binop_info(tok):
-    kind, value = tok
     try:
-        return _binop_map[value] 
+        return _binop_map[tok.value] 
     except KeyError:
-        if kind == TokenKind.OPERATOR and value not in Parser.PUNCTUATORS:
-            raise ParseError("Undefined operator: " + value)
+        if tok.kind == TokenKind.OPERATOR and tok.value not in Parser.PUNCTUATORS:
+            raise ParseError("Undefined operator: " + tok.value)
         # Return a false binop info that has no precedence    
         return FALSE_BINOP_INFO
 
@@ -53,7 +53,7 @@ class Parser(object):
     # toplevel ::= definition | external | expression
     def parse_generator(self, source):
         """Given a string, returns an AST node representing it."""
-        self.token_generator = Lexer(source).tokens()
+        self.token_generator = tokens_from(source)
         self.cur_tok = None
         self._get_next_token()
 
@@ -457,5 +457,9 @@ class TestParser(unittest.TestCase):
 
 if __name__ == '__main__':
 
-    import kal
-    kal.run(parseonly = True) 
+    import kal, sys
+    if sys.argv[1:] == ['--repl']:
+        kal.run(parseonly = True)
+    else:
+        unittest.main()
+     
