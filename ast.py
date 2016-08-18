@@ -1,97 +1,16 @@
-from collections import namedtuple
+
+from ast_base import *
 
 # AST hierarchy
 
-class Node(object):
-    def flatten(self):
-        return [self.__class__.__name__, 'flatten unimplemented']            
-
-    def dump(self, indent=0):
-        return dump(self.flatten(), indent)
-
-class Expr(Node):
-    pass
-
-class Number(Expr):
-    def __init__(self, val):
-        self.val = val
-
-    def flatten(self):
-        return [self.__class__.__name__, self.val]            
-
-
-class Variable(Expr):
-    def __init__(self, name):
-        self.name = name
-
-    def flatten(self):
-        return [self.__class__.__name__, self.name]            
-
-class Unary(Expr):
-    def __init__(self, op, rhs):
-        self.op = op
-        self.rhs = rhs
-
-    def flatten(self):
-        return [self.__class__.__name__, self.op, self.rhs.flatten()]  
-
-class Binary(Expr):
-    def __init__(self, op, lhs, rhs):
-        self.op = op
-        self.lhs = lhs
-        self.rhs = rhs
-
-    def flatten(self):
-        return [self.__class__.__name__, self.op, self.lhs.flatten(), self.rhs.flatten()]    
-
-class Call(Expr):
-    def __init__(self, callee, args):
-        self.callee = callee
-        self.args = args
-
-    def flatten(self):
-        return [self.__class__.__name__, self.callee, [arg.flatten() for arg in self.args] ]    
-
-class If(Expr):
-    def __init__(self, cond_expr, then_expr, else_expr):
-        self.cond_expr = cond_expr
-        self.then_expr = then_expr
-        self.else_expr = else_expr
-
-    def flatten(self):
-        return [self.__class__.__name__, self.cond_expr.flatten(), self.then_expr.flatten(), self.else_expr.flatten() ]    
-
-
-class For(Expr):
-    def __init__(self, id_name, start_expr, end_expr, step_expr, body):
-        self.id_name = id_name
-        self.start_expr = start_expr
-        self.end_expr = end_expr
-        self.step_expr = step_expr
-        self.body = body
-
-    def flatten(self):
-        return [
-            self.__class__.__name__, 
-            self.id_name, 
-            self.start_expr.flatten(), 
-            self.end_expr.flatten(),
-            self.step_expr.flatten() if self.step_expr else ["No step"],
-            self.body.flatten()
-        ]    
-
-class VarIn(Expr):
-    def __init__(self, vars, body):
-        # vars is a sequence of (name, expr) pairs
-        self.vars = vars
-        self.body = body
-
-    def flatten(self):
-        return [
-            self.__class__.__name__, 
-            [[var[0], var[1].flatten() if var[1] else None] for var in self.vars], 
-            self.body.flatten()
-        ]  
+Binary      = newexpr('Binary', 'op lhs rhs')
+Call        = newexpr('Call', 'callee args')
+For         = newexpr('For', 'id_name, start_expr, end_expr, step_expr, body')
+If          = newexpr('If', 'cond_expr then_expr else_expr')
+Number      = newexpr("Number", 'val') 
+Unary       = newexpr('Unary', 'op rhs')
+Variable    = newexpr('Variable', 'name')
+VarIn       = newexpr('VarIn', 'vars body') 
 
 _ANONYMOUS = "_ANONYMOUS."
 
@@ -147,25 +66,13 @@ class Function(Node):
         return [self.__class__.__name__, self.proto.flatten(), self.body.flatten()]    
 
 
-def dump(flattened, indent=0):
-    s = " " * indent
-    starting = True
-    for elem in flattened:
-
-        if not starting: 
-            s += " "
-
-        if isinstance(elem, list):
-            if isinstance(elem[0], list) :
-                s += dump(elem, indent)
-            else:    
-                s += '\n' + dump(elem, indent + 2)
-        else:
-            s += str(elem)
-        starting = False
-    return s;        
-
 if __name__ == '__main__':
 
-    print("Run the parsing module to test the AST stuff!")    
+    f = Call("f", [Variable('x'), Number(8)])
+    print(f.flatten())    
+    print(f.dump())    
+
+    g = Call("g", [ ])
+    print(g.flatten())    
+    print(g.dump())    
 
