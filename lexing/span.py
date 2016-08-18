@@ -1,5 +1,4 @@
-import source
-from mixin import *
+from .mixin import *
 
 class Span(EqualityMixin, StrMixin):
     """ Describe a span of text in source code:
@@ -34,6 +33,7 @@ def mock(codestr = "mocked_span_codestr"):
 #---- Some unit tests ----#
 
 import unittest
+from . import source
 
 class TestSource(unittest.TestCase):
 

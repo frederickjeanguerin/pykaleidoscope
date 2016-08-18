@@ -1,4 +1,4 @@
-from mixin import *
+from .mixin import *
 
 class Source (EqualityMixin, StrMixin):
     """ Source code descriptor : immutable """

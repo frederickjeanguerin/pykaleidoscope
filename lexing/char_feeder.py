@@ -1,5 +1,5 @@
-import source
-from span import *
+from . import source
+from .span import Span
 
 
 class CharFeederIsEmpty(Exception):

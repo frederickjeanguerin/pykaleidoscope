@@ -2,10 +2,11 @@ from ctypes import CFUNCTYPE, c_double
 from collections import namedtuple
 import colorama ; colorama.init()
 from termcolor import colored, cprint
+
 from ast import *
 from parsing import *
 from codegen import *
-from source import *
+from lexing.source import Source
 
 Result = namedtuple("Result", ['value', 'ast', 'rawIR', 'optIR'])
 
@@ -322,5 +323,9 @@ class TestEvaluator(unittest.TestCase):
 
 if __name__ == '__main__':
 
-    import kal
-    kal.run()
+    import sys
+    if sys.argv[1:] == ['--repl']:
+        import kal
+        kal.run()
+    else:
+        unittest.main()

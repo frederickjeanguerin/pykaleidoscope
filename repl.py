@@ -2,8 +2,10 @@ import copy, colorama, llvmlite, sys
 from importlib import reload
 from termcolor import colored, cprint
 colorama.init()
-import lexer, parsing, codegen, codexec
-from source import *
+
+import parsing, codegen, codexec, lexing.lexer
+from lexing.source import Source
+
 
 class ReloadException(Exception): pass
 
@@ -128,7 +130,7 @@ def run_repl_command(k, command, options):
     elif command in ['quit', 'exit', 'stop']:
         sys.exit()
     elif command in ['reload', '.']:
-        reload(lexer)
+        reload(lexing.lexer)
         reload(parsing)
         reload(codegen)
         reload(codexec)

@@ -1,8 +1,7 @@
+from enum import *
 from collections import namedtuple
-from lexer import *
+from lexing.lexer import tokens_from, Token, TokenKind
 from ast import *
-from tok import *
-from source import *
 
 @unique
 class Associativity(Enum):
@@ -327,6 +326,9 @@ class Parser(object):
 
 #---- Some unit tests ----#
 
+import unittest
+from lexing.source import Source
+
 def parse_toplevel(buf, parser  = Parser()):
     return next(parser.parse_generator(Source("parsing tests", buf)))
 
@@ -457,8 +459,9 @@ class TestParser(unittest.TestCase):
 
 if __name__ == '__main__':
 
-    import kal, sys
+    import sys
     if sys.argv[1:] == ['--repl']:
+        import kal
         kal.run(parseonly = True)
     else:
         unittest.main()

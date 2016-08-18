@@ -1,7 +1,6 @@
-import source
 from enum import *
-from mixin import * 
-import span
+from .mixin import * 
+from . import span
 
 @unique
 class TokenKind(Enum):
@@ -22,15 +21,16 @@ class TokenKind(Enum):
     UNARY = -109
     VAR = -110
 
-def get_keyword_tokenkind(keywordname):
-    """ Returns the TokenKind of a keywordname or None if not found"""
-    try:
-        kind = TokenKind[keywordname.upper()]
-        if kind.value < -100: 
-            return kind
-    except KeyError:
-        pass
-    return None    
+    @staticmethod
+    def get_keyword(keywordname):
+        """ Returns the TokenKind of a keywordname or None if not found"""
+        try:
+            kind = TokenKind[keywordname.upper()]
+            if kind.value < -100: 
+                return kind
+        except KeyError:
+            pass
+        return None    
 
 
 class Token(EqualityMixin, StrMixin):
@@ -62,9 +62,9 @@ import unittest
 
 class TestTok(unittest.TestCase):
 
-    def test_get_keyword_tokenkind(self):
-        self.assertEqual(get_keyword_tokenkind('if'), TokenKind.IF)
-        self.assertEqual(get_keyword_tokenkind('not a token'), None)
+    def test_get_keyword(self):
+        self.assertEqual(TokenKind.get_keyword('if'), TokenKind.IF)
+        self.assertEqual(TokenKind.get_keyword('not a token'), None)
 
     def test_token_equality(self):
         self.assertEqual(mock(), mock())

@@ -1,10 +1,6 @@
-from enum import * 
-from collections import namedtuple
 
-from source import *
-from span import *
-from tok import *
-from char_feeder import *
+from .tok import Token, TokenKind
+from .char_feeder import CharFeeder
 
 def tokens_from(source):
     """Lexer for Kaleidoscope.
@@ -25,7 +21,7 @@ def tokens_from(source):
             while feeder.current.isalnum() or feeder.current == '_':
                 feeder.next()
             span = feeder.stop_span()
-            kind = get_keyword_tokenkind(span.text)
+            kind = TokenKind.get_keyword(span.text)
             if kind:
                 yield Token(kind, span)
             else:
@@ -51,7 +47,8 @@ def tokens_from(source):
 #---- Some unit tests ----#
 
 import unittest
-
+from . import source
+from .span import Span
 
 def _lex(codestr):
     src = source.mock(codestr)
