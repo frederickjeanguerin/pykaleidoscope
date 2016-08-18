@@ -10,19 +10,27 @@ class Node(object):
 class Expr(Node):
     pass
 
-class FlattenMixin:
 
-    def flatten(self):
-        return _flatten(self)
-
-
-def newnode(typename, properties, parents = (Node,)):
+def _newtype(typename, properties, *parents):
+    """Create a new node type as a namedtuple with ancestors in parents."""
     nt = namedtuple(typename, properties)
-    nt.__bases__ = (FlattenMixin,) + parents + nt.__bases__
+    # Add parents
+    nt.__bases__ = tuple(parents) + nt.__bases__
+    # Add method Flatten
+    setattr(nt, 'flatten', _flatten)
     return nt
 
-def newexpr(typename, properties):
-    return newnode(typename, properties, (Expr,) )
+def newnode(typename, properties, *mixins):
+    """Create a new nodetype as a named tuple which descends from Node.
+       To add behavior, just add some mixins 
+    """
+    return _newtype(typename, properties, *mixins, Node)
+
+def newexpr(typename, properties, *mixins):
+    """Create a new nodetype as a named tuple which descends from Expr.
+       To add behavior, just add some mixins 
+    """
+    return _newtype(typename, properties, *mixins, Expr)
 
 
 def _flatten(node):

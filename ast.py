@@ -50,10 +50,7 @@ class Prototype(Node):
         else :
             return flattened       
 
-class Function(Node):
-    def __init__(self, proto, body):
-        self.proto = proto
-        self.body = body
+class FunctionMixin:
 
     def is_anonymous(self):
         return self.proto.is_anonymous()    
@@ -62,17 +59,22 @@ class Function(Node):
     def Anonymous(body):
         return Function(Prototype.Anonymous(), body)
 
-    def flatten(self):
-        return [self.__class__.__name__, self.proto.flatten(), self.body.flatten()]    
+Function = newnode('Function', 'proto body', FunctionMixin)
 
+
+#---- Some unit tests ----#
+
+import unittest
+
+class TestSource(unittest.TestCase):
+
+    def test_Function(self):
+        p = Prototype("f", ['x', 'y'])
+        f = Function(p, Number(10))
+        self.assertFalse( f.is_anonymous() )
+        anon = Function.Anonymous(Number(20))
+        self.assertIsInstance(anon, Function)
 
 if __name__ == '__main__':
 
-    f = Call("f", [Variable('x'), Number(8)])
-    print(f.flatten())    
-    print(f.dump())    
-
-    g = Call("g", [ ])
-    print(g.flatten())    
-    print(g.dump())    
-
+    unittest.main()   
