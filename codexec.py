@@ -10,6 +10,14 @@ from lexing.source import Source
 
 Result = namedtuple("Result", ['value', 'ast', 'rawIR', 'optIR'])
 
+_count = 0
+_ANONYMOUS = "anonymous"
+
+def make_unique_anonymous_function(ast):
+    global _count
+    _count += 1
+    return Function(proto=Prototype(_ANONYMOUS + str(_count), []), body=ast)
+
 def dump(str, filename):
     """Dump a string to a file name."""
     with open(filename, 'w') as file:
@@ -96,6 +104,11 @@ class KaleidoscopeEvaluator(object):
         if parseonly:
             return Result(ast.dump(), ast, rawIR, optIR)
 
+        # If ast is an expression, enclose it in an anonymous function call with no args to be fetchable from the JIT and callable and runnable afterwards.
+        is_expr = isinstance(ast, Expr)     
+        if is_expr:
+            ast = make_unique_anonymous_function(ast)
+
         # Generate code
         self.codegen.generate_code(ast)
         if noexec or verbose:
@@ -111,8 +124,7 @@ class KaleidoscopeEvaluator(object):
         # anything else. If we're evaluating an anonymous wrapper for a toplevel
         # expression, JIT-compile the module and run the function to get its
         # result.
-        def_or_extern = not (isinstance(ast, Function) and ast.is_anonymous())
-        if def_or_extern and not verbose:
+        if not is_expr and not verbose:
             return Result(None, ast, rawIR, optIR)
 
         # Convert LLVM IR into in-memory representation and verify the code
@@ -132,7 +144,7 @@ class KaleidoscopeEvaluator(object):
 
         if verbose:
             optIR = lastIR(llvmmod, -2)
-            if def_or_extern:
+            if not is_expr:
                 return Result(None, ast, rawIR, optIR)
 
         # Create a MCJIT execution engine to JIT-compile the module. Note that

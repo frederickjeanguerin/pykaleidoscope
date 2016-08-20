@@ -62,7 +62,7 @@ class Parser(object):
             elif self.cur_tok.kind == TokenKind.DEF:
                 yield self._parse_definition()
             else:
-                yield self._parse_toplevel_expression()
+                yield self._parse_expression()
 
     def _get_next_token(self):
         self.cur_tok = next(self.token_generator)
@@ -318,12 +318,6 @@ class Parser(object):
         expr = self._parse_expression()
         return Function(proto, expr)
 
-    # toplevel ::= expression
-    def _parse_toplevel_expression(self):
-        expr = self._parse_expression()
-        # Anonymous function
-        return Function.Anonymous(expr)
-
 #---- Some unit tests ----#
 
 import unittest
@@ -334,6 +328,14 @@ def parse_toplevel(buf, parser  = Parser()):
 
 class TestParser(unittest.TestCase):
 
+    def _assert_ast(self, ast, expected_flattened_ast):
+        self.assertEqual(ast.flatten(), expected_flattened_ast)
+
+    def _assert_parse(self, codestr, expected_flattened_ast):
+        self.assertEqual(
+            parse_toplevel(codestr).flatten(), 
+            expected_flattened_ast)
+
     def _assert_body(self, toplevel, expected):
         """Assert the flattened body of the given toplevel function"""
         self.assertIsInstance(toplevel, Function)
@@ -341,27 +343,21 @@ class TestParser(unittest.TestCase):
 
     def test_basic(self):
         ast = parse_toplevel('2')
-        self.assertIsInstance(ast, Function)
-        self.assertIsInstance(ast.body, Number)
-        self.assertEqual(ast.body.val, '2')
+        self.assertIsInstance(ast, Number)
+        self.assertEqual(ast.val, '2')
 
     def test_basic_with_flattening(self):
-        ast = parse_toplevel('2')
-        self._assert_body(ast, ['Number', '2'])
-
-        ast = parse_toplevel('foobar')
-        self._assert_body(ast, ['Variable', 'foobar'])
+        self._assert_parse('2', ['Number', '2'])
+        self._assert_parse('foobar', ['Variable', 'foobar'])
 
     def test_expr_singleprec(self):
-        ast = parse_toplevel('2+ 3-4')
-        self._assert_body(ast,
+        self._assert_parse('2+ 3-4',
             ['Binary',
                 '-', ['Binary', '+', ['Number', '2'], ['Number', '3']],
                 ['Number', '4']])
 
     def test_expr_multiprec(self):
-        ast = parse_toplevel('2+3*4-9')
-        self._assert_body(ast,
+        self._assert_parse('2+3*4-9',
             ['Binary', '-',
                 ['Binary', '+',
                     ['Number', '2'],
@@ -369,8 +365,7 @@ class TestParser(unittest.TestCase):
                 ['Number', '9']])
 
     def test_expr_parens(self):
-        ast = parse_toplevel('2*(3-4)*7')
-        self._assert_body(ast,
+        self._assert_parse('2*(3-4)*7',
             ['Binary', '*',
                 ['Binary', '*',
                     ['Number', '2'],
@@ -378,16 +373,13 @@ class TestParser(unittest.TestCase):
                 ['Number', '7']])
 
     def test_externals(self):
-        ast = parse_toplevel('extern sin(arg)')
-        self.assertEqual(ast.flatten(), ['Prototype', 'sin', '(arg)'])
+        self._assert_parse('extern sin(arg)', ['Prototype', 'sin', '(arg)'])
 
-        ast = parse_toplevel('extern Foobar(nom denom abom)')
-        self.assertEqual(ast.flatten(),
+        self._assert_parse('extern Foobar(nom denom abom)',
             ['Prototype', 'Foobar', '(nom denom abom)'])
 
     def test_funcdef(self):
-        ast = parse_toplevel('def foo(x) 1 + bar(x)')
-        self.assertEqual(ast.flatten(),
+        self._assert_parse('def foo(x) 1 + bar(x)',
             ['Function', ['Prototype', 'foo', '(x)'],
                 ['Binary', '+',
                     ['Number', '1'],
@@ -403,7 +395,7 @@ class TestParser(unittest.TestCase):
         self.assertEqual(proto.name, 'unary!')
 
         ast = parse_toplevel('!a + !b - !!c', p)
-        self._assert_body(ast,
+        self._assert_ast(ast,
             ['Binary', '-',
                 ['Binary', '+',
                     ['Unary', '!', ['Variable', 'a']],
@@ -433,7 +425,7 @@ class TestParser(unittest.TestCase):
         p = Parser()
         parse_toplevel('def binary% 77(a b) a + b', p)
         ast = parse_toplevel('a * 10 % 5 * 10', p)
-        self._assert_body(ast,
+        self._assert_ast(ast,
             ['Binary', '*',
                 ['Binary', '*',
                     ['Variable', 'a'],
@@ -441,14 +433,13 @@ class TestParser(unittest.TestCase):
                 ['Number', '10']])
 
         ast = parse_toplevel('a % 20 * 5', p)
-        self._assert_body(ast,
+        self._assert_ast(ast,
             ['Binary', '*',
                 ['Binary', '%', ['Variable', 'a'], ['Number', '20']],
                 ['Number', '5']])
 
     def test_binop_right_associativity(self):
-        ast = parse_toplevel('x = y = 10 + 5')
-        self._assert_body(ast,
+        self._assert_parse('x = y = 10 + 5',
             ['Binary', '=',
                 ['Variable', 'x'],
                 ['Binary', '=',
