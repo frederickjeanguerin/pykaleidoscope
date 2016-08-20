@@ -6,13 +6,12 @@ from ast_base import *
 Binary      = newexpr('Binary', 'op lhs rhs')
 Call        = newexpr('Call', 'callee args')
 For         = newexpr('For', 'id_name, start_expr, end_expr, step_expr, body')
+Function    = newnode('Function', 'proto body')
 If          = newexpr('If', 'cond_expr then_expr else_expr')
 Number      = newexpr("Number", 'val') 
 Unary       = newexpr('Unary', 'op rhs')
 Variable    = newexpr('Variable', 'name')
 VarIn       = newexpr('VarIn', 'vars body') 
-
-_ANONYMOUS = "_ANONYMOUS."
 
 DEFAULT_PREC = 30
 
@@ -33,16 +32,6 @@ class Prototype(Node):
         assert self.isoperator
         return self.name[-1]
 
-    _anonymous_count = 0
-
-    @classmethod
-    def Anonymous(klass):
-        klass._anonymous_count += 1
-        return Prototype(_ANONYMOUS + str(klass._anonymous_count), [])     
-
-    def is_anonymous(self):
-        return self.name.startswith(_ANONYMOUS)    
-
     def flatten(self):
         flattened = [self.__class__.__name__, self.name, '(' + ' '.join(self.argnames) + ')']
         if self.prec != DEFAULT_PREC:
@@ -50,16 +39,7 @@ class Prototype(Node):
         else :
             return flattened       
 
-class FunctionMixin:
 
-    def is_anonymous(self):
-        return self.proto.is_anonymous()    
-
-    @staticmethod    
-    def Anonymous(body):
-        return Function(Prototype.Anonymous(), body)
-
-Function = newnode('Function', 'proto body', FunctionMixin)
 
 
 #---- Some unit tests ----#
@@ -71,9 +51,7 @@ class TestSource(unittest.TestCase):
     def test_Function(self):
         p = Prototype("f", ['x', 'y'])
         f = Function(p, Number(10))
-        self.assertFalse( f.is_anonymous() )
-        anon = Function.Anonymous(Number(20))
-        self.assertIsInstance(anon, Function)
+        self.assertEqual( f.proto, p )
 
 if __name__ == '__main__':
 
