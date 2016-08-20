@@ -35,7 +35,7 @@ def newexpr(typename, properties, *mixins):
 
 def _flatten(node):
 
-    if isinstance(node, tuple):
+    if isinstance(node, tuple) and not type(node) is tuple:
         return [node.__class__.__name__] + [_flatten(item) for item in node]
 
     elif isinstance(node, Node):
