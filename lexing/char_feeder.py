@@ -31,7 +31,7 @@ class CharFeeder:
     def start_span(self):        
         self.start = self.pos
 
-    def stop_span(self):
+    def get_span(self):
         return Span(self.start, self.pos, self.SOURCE)
 
 
@@ -47,7 +47,7 @@ class TestCharFeeder(unittest.TestCase):
         self.assertEqual( f.current, "" )
         self.assertRaises(CharFeederIsEmpty, f.next)
         f.start_span()
-        s = f.stop_span()
+        s = f.get_span()
         self.assertEqual(s, Span(0, 0, source.mock("")))
 
     def test_nonempty(self):
@@ -62,7 +62,7 @@ class TestCharFeeder(unittest.TestCase):
         f.start_span()
         f.next()
         f.next()
-        s = f.stop_span()
+        s = f.get_span()
         self.assertEqual(s, Span(2, 4, src))
         self.assertEqual(s.text, 'ph')
         f.next()

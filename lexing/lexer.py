@@ -20,28 +20,37 @@ def tokens_from(source):
         if feeder.current.isalpha():
             while feeder.current.isalnum() or feeder.current == '_':
                 feeder.next()
-            span = feeder.stop_span()
+            span = feeder.get_span()
             kind = TokenKind.get_keyword(span.text)
-            if kind:
+            # Operator identifier
+            if kind in [TokenKind.BINARY, TokenKind.UNARY]:
+                if feeder.is_empty() or feeder.current.isspace():
+                    yield Token(TokenKind.IDENTIFIER, span)
+                else :
+                    feeder.next()  # Add operator to identifier
+                    yield Token(TokenKind.IDENTIFIER, feeder.get_span(), kind)
+            # Keyword         
+            elif kind:
                 yield Token(kind, span)
+            # Identifier    
             else:
                 yield Token(TokenKind.IDENTIFIER, span)
         # Number
         elif feeder.current.isdigit() or feeder.current == '.':
             while feeder.current.isdigit() or feeder.current == '.':
                 feeder.next()
-            yield Token(TokenKind.NUMBER, feeder.stop_span())
+            yield Token(TokenKind.NUMBER, feeder.get_span())
         # Comment
         elif feeder.current == '#':
             while feeder.current and feeder.current not in '\r\n':
                 feeder.next()
-        # Operator        
+        # Operator or operator special identifier
         elif feeder.current:
             feeder.next()
-            yield Token(TokenKind.OPERATOR, feeder.stop_span())
+            yield Token(TokenKind.OPERATOR, feeder.get_span())
 
     feeder.start_span()        
-    yield Token(TokenKind.EOF, feeder.stop_span())
+    yield Token(TokenKind.EOF, feeder.get_span())
 
 
 #---- Some unit tests ----#
@@ -90,6 +99,19 @@ class TestLexer(unittest.TestCase):
     def test_lexer_keyword(self):
         toks, src = _lex('if')
         self._assert_sametok(toks[0], Token(TokenKind.IF, Span(0,2,src)))
+
+    def test_lexer_operator_iden(self):
+        toks, src = _lex('unary+')
+        self._assert_sametok(toks[0], Token(TokenKind.IDENTIFIER, Span(0,6,src), TokenKind.UNARY))
+
+        toks, src = _lex('binary')
+        self._assert_sametok(toks[0], Token(TokenKind.IDENTIFIER, Span(0,6,src)))
+
+        toks, src = _lex(' binary ')
+        self._assert_sametok(toks[0], Token(TokenKind.IDENTIFIER, Span(1,7,src)))
+
+        toks, src = _lex(' binary* ')
+        self._assert_sametok(toks[0], Token(TokenKind.IDENTIFIER, Span(1,8,src), TokenKind.BINARY))
 
     def test_lexer_operator(self):
         toks, src = _lex('+')

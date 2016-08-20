@@ -36,9 +36,10 @@ class TokenKind(Enum):
 class Token(EqualityMixin, StrMixin):
     """ Token descriptor : immutable """
 
-    def __init__(self, kind, span):
+    def __init__(self, kind, span, subkind = None):
         self.kind = kind
-        self.span = span    
+        self.span = span
+        self.subkind = subkind    
 
     @property
     def value(self):

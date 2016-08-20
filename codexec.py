@@ -256,7 +256,7 @@ class TestEvaluator(unittest.TestCase):
 
     def test_custom_binop(self):
         e = KaleidoscopeEvaluator()
-        e.evaluate('def binary %(a b) a - b')
+        e.evaluate('def binary%(a b) a - b')
         self.assertEqual(e.evaluate('10 % 5'), 5)
         self.assertEqual(e.evaluate('100 % 5.5'), 94.5)
 
@@ -273,7 +273,7 @@ class TestEvaluator(unittest.TestCase):
         e = KaleidoscopeEvaluator()
         e.evaluate('def unary!(a) 0 - a')
         e.evaluate('def unary^(a) a * a')
-        e.evaluate('def binary %(a b) a - b')
+        e.evaluate('def binary%(a b) a - b')
         self.assertEqual(e.evaluate('!10 % !20'), 10)
         self.assertEqual(e.evaluate('^(!10 % !20)'), 100)
 
@@ -288,7 +288,7 @@ class TestEvaluator(unittest.TestCase):
 
     def test_var_expr2(self):
         e = KaleidoscopeEvaluator()
-        e.evaluate('def binary : 1 (x y) y')
+        e.evaluate('def binary: (x y) y')
         e.evaluate('''
             def foo(step)
                 var accum in
@@ -310,7 +310,7 @@ class TestEvaluator(unittest.TestCase):
 
     def test_assignments(self):
         e = KaleidoscopeEvaluator()
-        e.evaluate('def binary : 1 (x y) y')
+        e.evaluate('def binary: (x y) y')
         e.evaluate('''
             def foo(a b)
                 var s, p, r in
@@ -324,7 +324,7 @@ class TestEvaluator(unittest.TestCase):
 
     def test_triple_assignment(self):
         e = KaleidoscopeEvaluator()
-        e.evaluate('def binary : 1 (x y) y')
+        e.evaluate('def binary: (x y) y')
         e.evaluate('''
             def foo(a)
                 var x, y, z in
