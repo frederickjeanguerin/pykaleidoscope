@@ -53,6 +53,10 @@ class Token(EqualityMixin, StrMixin):
     def len(self):
         return self.span.len    
 
+    def __str__(self):
+        if(self.kind == TokenKind.EOF):
+            return "EOF"
+        return self.text    
 
 def mock(kind = TokenKind.IDENTIFIER, identifierstr = 'mocked_token_text'):
     return Token(kind, span.mock(identifierstr)) 

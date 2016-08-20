@@ -3,7 +3,9 @@ from lexing.lexer import tokens_from, Token, TokenKind
 import binop
 from ast import *
 
-class ParseError(Exception): pass
+class ParseError(Exception): 
+    """ Expecting two arguments: (message, token). """
+    pass
 
 class Parser(object):
     """Parser for the Kaleidoscope language.
@@ -54,9 +56,9 @@ class Parser(object):
             return True
         return False            
 
-    def _raise(self, message):
+    def _raise(self, message, token = None):
         """Raise a parse error, passing it a message and the current token"""
-        raise ParseError(message, self.cur_tok)
+        raise ParseError(message, token or self.cur_tok)
 
     def binop_info(self):
         """ Return a BinOpInfo about the current token.
@@ -137,10 +139,10 @@ class Parser(object):
             return self._parse_var_expr()            
         elif self._match(TokenKind.OPERATOR):
             if self.cur_tok.text in Parser.PUNCTUATORS :
-                self._raise('Expression expected before that')
+                self._raise('Expression expected before punctuator')
             return self._parse_unaryop_expr()
         elif self._match(TokenKind.EOF):
-            self._raise('Expression expected before end of code')            
+            self._raise('Expression expected before end of code at')            
         else:
             self._raise('Expression expected but met unknown token')
 
@@ -263,9 +265,9 @@ class Parser(object):
         self._eat(')')
 
         if idtok.subkind == TokenKind.BINARY and len(argnames) != 2:
-            self._raise('Binary operator function should have 2 operands')
+            self._raise('Binary operator should have 2 operands', idtok)
         elif idtok.subkind == TokenKind.UNARY and len(argnames) != 1:
-            self._raise('Unary operator function should have one operand')
+            self._raise('Unary operator should have just one operand', idtok)
 
         return Prototype(idtok.text, argnames)
 
