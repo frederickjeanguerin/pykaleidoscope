@@ -9,11 +9,11 @@ class Source (EqualityMixin, StrMixin):
 
     @property
     def len(self):
-        return len(self.text)    
+        return len(self.text)
 
-
-def mock(codestr = "mocked_source_codestr"):
-    return Source('mocked_name', codestr)
+    @staticmethod    
+    def mock(codestr = "mocked_source_codestr"):
+        return Source('mocked_name', codestr)
 
 
 #---- Some unit tests ----#
@@ -23,7 +23,7 @@ import unittest
 class TestSource(unittest.TestCase):
 
     def test_equality(self):
-        self.assertEqual( mock(), mock() )
+        self.assertEqual( Source.mock(), Source.mock() )
 
 
 if __name__ == '__main__':

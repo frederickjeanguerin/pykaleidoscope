@@ -1,6 +1,7 @@
 from enum import *
 from .mixin import * 
-from . import span
+from .span import Span
+from .line import Line
 
 @unique
 class TokenKind(Enum):
@@ -36,10 +37,11 @@ class TokenKind(Enum):
 class Token(EqualityMixin, StrMixin):
     """ Token descriptor : immutable """
 
-    def __init__(self, kind, span, subkind = None):
+    def __init__(self, kind, span, line, subkind = None):
         self.kind = kind
         self.span = span
-        self.subkind = subkind    
+        self.line = line
+        self.subkind = subkind
 
     @property
     def value(self):
@@ -53,13 +55,26 @@ class Token(EqualityMixin, StrMixin):
     def len(self):
         return self.span.len    
 
+    @property
+    def lineno(self):
+        return self.line.no    
+
+    @property
+    def colno(self):
+        return self.span.start - self.line.pos    
+
+    @property
+    def endcolno(self):
+        return self.span.stop - self.line.pos    
+
     def __str__(self):
         if(self.kind == TokenKind.EOF):
             return "EOF"
         return self.text    
 
-def mock(kind = TokenKind.IDENTIFIER, identifierstr = 'mocked_token_text'):
-    return Token(kind, span.mock(identifierstr)) 
+    @staticmethod
+    def mock(kind = TokenKind.IDENTIFIER, identifierstr = 'mocked_token_text'):
+        return Token(kind, Span.mock(identifierstr), Line.mock(identifierstr)) 
 
 #---- Some unit tests ----#
 
@@ -72,7 +87,7 @@ class TestTok(unittest.TestCase):
         self.assertEqual(TokenKind.get_keyword('not a token'), None)
 
     def test_token_equality(self):
-        self.assertEqual(mock(), mock())
+        self.assertEqual(Token.mock(), Token.mock())
 
 if __name__ == '__main__':
     unittest.main()
