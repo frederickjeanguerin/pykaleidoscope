@@ -16,6 +16,7 @@ def tokens_from(source):
             feeder.next()
         # A new token ahead so start recording for a span    
         feeder.start_span()
+        line = feeder.get_line()
         # Identifier or keyword
         if feeder.current.isalpha():
             while feeder.current.isalnum() or feeder.current == '_':
@@ -25,21 +26,21 @@ def tokens_from(source):
             # Operator identifier
             if kind in [TokenKind.BINARY, TokenKind.UNARY]:
                 if feeder.is_empty() or feeder.current.isspace():
-                    yield Token(TokenKind.IDENTIFIER, span)
+                    yield Token(TokenKind.IDENTIFIER, span, line)
                 else :
                     feeder.next()  # Add operator to identifier
-                    yield Token(TokenKind.IDENTIFIER, feeder.get_span(), kind)
+                    yield Token(TokenKind.IDENTIFIER, feeder.get_span(), line, kind)
             # Keyword         
             elif kind:
-                yield Token(kind, span)
+                yield Token(kind, span, line)
             # Identifier    
             else:
-                yield Token(TokenKind.IDENTIFIER, span)
+                yield Token(TokenKind.IDENTIFIER, span, line)
         # Number
         elif feeder.current.isdigit() or feeder.current == '.':
             while feeder.current.isdigit() or feeder.current == '.':
                 feeder.next()
-            yield Token(TokenKind.NUMBER, feeder.get_span())
+            yield Token(TokenKind.NUMBER, feeder.get_span(), line )
         # Comment
         elif feeder.current == '#':
             while feeder.current and feeder.current not in '\r\n':
@@ -47,20 +48,21 @@ def tokens_from(source):
         # Operator or operator special identifier
         elif feeder.current:
             feeder.next()
-            yield Token(TokenKind.OPERATOR, feeder.get_span())
+            yield Token(TokenKind.OPERATOR, feeder.get_span(),  line )
 
     feeder.start_span()        
-    yield Token(TokenKind.EOF, feeder.get_span())
+    yield Token(TokenKind.EOF, feeder.get_span(), feeder.get_line() )
 
 
 #---- Some unit tests ----#
 
 import unittest
-from . import source
+from .source import Source
 from .span import Span
+from .line import Line
 
 def _lex(codestr):
-    src = source.mock(codestr)
+    src = Source.mock(codestr)
     return list(tokens_from(src)), src
 
 class TestLexer(unittest.TestCase):
@@ -69,79 +71,65 @@ class TestLexer(unittest.TestCase):
         # We need to compare text before to generate 
         # the private _text field in both objects
         self.assertEqual(tok1.text, tok2.text)
-        self.assertEqual(tok1, tok2)
+        self.assertEqual(tok1.kind, tok2.kind)
 
-    def _assert_toks(self, codestr, kinds):
+    def _assert_lex(self, codestr, expected_tokens):
+        tokens, src = _lex(codestr)
+        self.assertEqual(len(tokens), len(expected_tokens) + 1)
+        for i, tok in enumerate(tokens[:-2]):
+            self.assertEqual(tok.kind.name, expected_tokens[i][0])
+            self.assertEqual(tok.text, expected_tokens[i][1])
+            if len(expected_tokens[i]) == 3:
+                self.assertEqual(tok.subkind, expected_tokens[i][2])
+                
+        self._assert_sametok(tokens[-1], Token.mock(TokenKind.EOF, ''))    
+
+    def _assert_kinds(self, codestr, kinds):
         """Assert that the list of toks has the given kinds."""
         toks, src = _lex(codestr)
         self.assertEqual([t.kind.name for t in toks], kinds)
 
     def test_lexer_empty(self):
         toks, src = _lex('')
-        self.assertEqual(toks[0], Token(TokenKind.EOF, Span(0,0,src)))
+        self.assertEqual(toks[0], Token(TokenKind.EOF, Span(0,0,src), Line(1,0, src)))
 
     def test_lexer_number(self):
-        toks, src = _lex('.1519')
-        self.assertEqual(toks[0], Token(TokenKind.NUMBER, Span(0,5,src)))
+        self._assert_lex('.1519', [('NUMBER', '.1519')])
+        self._assert_lex('23.15', [('NUMBER', '23.15')])
+        self._assert_lex('1519.', [('NUMBER', '1519.')])
 
-        toks, src = _lex('23.15')
-        self.assertEqual(toks[0], Token(TokenKind.NUMBER, Span(0,5,src)))
-
-        toks, src = _lex('1519.')
-        self.assertEqual(toks[0], Token(TokenKind.NUMBER, Span(0,5,src)))
-        self.assertEqual(toks[1], Token(TokenKind.EOF, Span(5,5,src)))
-        
     def test_lexer_iden(self):
-        toks, src = _lex('an_identifier')
-        self._assert_sametok(toks[0], 
-            Token(TokenKind.IDENTIFIER, Span(0,13,src)))
+        self._assert_lex('an_identifier', [('IDENTIFIER', 'an_identifier')])
         
     def test_lexer_keyword(self):
-        toks, src = _lex('if')
-        self._assert_sametok(toks[0], Token(TokenKind.IF, Span(0,2,src)))
+        self._assert_lex('if', [('IF', 'if')])
 
     def test_lexer_operator_iden(self):
-        toks, src = _lex('unary+')
-        self._assert_sametok(toks[0], Token(TokenKind.IDENTIFIER, Span(0,6,src), TokenKind.UNARY))
-
-        toks, src = _lex('binary')
-        self._assert_sametok(toks[0], Token(TokenKind.IDENTIFIER, Span(0,6,src)))
-
-        toks, src = _lex(' binary ')
-        self._assert_sametok(toks[0], Token(TokenKind.IDENTIFIER, Span(1,7,src)))
-
-        toks, src = _lex(' binary* ')
-        self._assert_sametok(toks[0], Token(TokenKind.IDENTIFIER, Span(1,8,src), TokenKind.BINARY))
+        self._assert_lex('unary+', [('IDENTIFIER', 'unary+', TokenKind.UNARY)])
+        self._assert_lex('binary*', [('IDENTIFIER', 'binary*', TokenKind.BINARY)])
+        self._assert_lex('unary', [('IDENTIFIER', 'unary', None)])
+        self._assert_lex('binary', [('IDENTIFIER', 'binary', None)])
 
     def test_lexer_operator(self):
-        toks, src = _lex('+')
-        self._assert_sametok(toks[0], Token(TokenKind.OPERATOR, Span(0,1,src)))
-                
-    def test_lexer_operator_with_spaces(self):
-        toks, src = _lex(' + ')
-        self._assert_sametok(toks[0], Token(TokenKind.OPERATOR, Span(1,2,src)))
-        self._assert_sametok(toks[1], Token(TokenKind.EOF, Span(3,3,src)))
+        self._assert_lex('+', [('OPERATOR', '+')])
+        self._assert_lex(' + ', [('OPERATOR', '+')])
                 
     def test_lexer_simple_expr(self):
-        toks, src = _lex('a+1')
-        self._assert_sametok(toks[0], Token(TokenKind.IDENTIFIER, Span(0, 1, src)))
-        self._assert_sametok(toks[1], Token(TokenKind.OPERATOR, Span(1, 2, src)))
-        self._assert_sametok(toks[2], Token(TokenKind.NUMBER, Span(2, 3, src)))
-        self._assert_sametok(toks[3], Token(TokenKind.EOF, Span(3, 3, src)))
+        self._assert_lex('a+1', [('IDENTIFIER', 'a'),('OPERATOR', '+'),('NUMBER','1')])
 
     def test_token_kinds(self):
-        self._assert_toks(
+        self._assert_kinds(
             '10.1 def der extern foo (',
             ['NUMBER', 'DEF', 'IDENTIFIER', 'EXTERN', 'IDENTIFIER',
              'OPERATOR', 'EOF'])
 
-        self._assert_toks(
+        self._assert_kinds(
             '+- 1 2 22 22.4 a b2 C3d',
             ['OPERATOR', 'OPERATOR', 'NUMBER', 'NUMBER', 'NUMBER', 'NUMBER',
              'IDENTIFIER', 'IDENTIFIER', 'IDENTIFIER', 'EOF'])
 
     def test_skip_whitespace_comments(self):
-        self._assert_toks(
+        self._assert_kinds(
             '''
             def foo # this is a comment
             # another comment
@@ -150,7 +138,7 @@ class TestLexer(unittest.TestCase):
             ['DEF', 'IDENTIFIER', 'NUMBER', 'EOF'])
 
 
-#---- Typical example use ----#
+#---- Run module tests ----#
 
 if __name__ == '__main__':
     unittest.main()

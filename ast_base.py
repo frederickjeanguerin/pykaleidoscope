@@ -1,8 +1,8 @@
-from collections import namedtuple
+from derivedtuple import derivedtuple
 
 class Node(object):
     def flatten(self):
-        return [self.__class__.__name__, 'flatten unimplemented']            
+        return _flatten(self)            
 
     def dump(self, indent=0):
         return _dump(self.flatten(), indent)
@@ -11,35 +11,23 @@ class Expr(Node):
     pass
 
 
-def _newtype(typename, properties, *parents):
-    """Create a new node type as a namedtuple with ancestors in parents."""
-    nt = namedtuple(typename, properties)
-    # Add parents
-    nt.__bases__ = tuple(parents) + nt.__bases__
-    # Add method Flatten
-    setattr(nt, 'flatten', _flatten)
-    return nt
-
 def newnode(typename, properties, *mixins):
     """Create a new nodetype as a named tuple which descends from Node.
        To add behavior, just add some mixins 
     """
-    return _newtype(typename, properties, *mixins, Node)
+    return derivedtuple(typename, properties, *mixins, Node)
 
 def newexpr(typename, properties, *mixins):
     """Create a new nodetype as a named tuple which descends from Expr.
        To add behavior, just add some mixins 
     """
-    return _newtype(typename, properties, *mixins, Expr)
+    return derivedtuple(typename, properties, *mixins, Expr)
 
 
 def _flatten(node):
 
     if isinstance(node, tuple) and not type(node) is tuple:
         return [node.__class__.__name__] + [_flatten(item) for item in node]
-
-    elif isinstance(node, Node):
-        return node.flatten()
 
     elif isinstance(node, list):
         return [_flatten(elem) for elem in node]
@@ -73,7 +61,7 @@ def _dump(flattened, indent=0):
 
 import unittest
 
-class TestSource(unittest.TestCase):
+class TestAstBase(unittest.TestCase):
 
     def test_newexpr(self):
         Number = newexpr('Number', 'val')

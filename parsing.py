@@ -142,7 +142,7 @@ class Parser(object):
                 self._raise('Expression expected before punctuator')
             return self._parse_unaryop_expr()
         elif self._match(TokenKind.EOF):
-            self._raise('Expression expected before end of code at')            
+            self._raise('Expression expected before end of code')            
         else:
             self._raise('Expression expected but met unknown token')
 

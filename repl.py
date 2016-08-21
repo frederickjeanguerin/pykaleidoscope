@@ -75,7 +75,7 @@ def print_eval(k, code, options = dict()):
                 print()
     except parsing.ParseError as err:
         message, token = err.args
-        errprint('Parse error: {} {}'.format(colored(message,'white'), colored(token, 'blue')))
+        errprint('Parse error: {} {}'.format(colored(message,'yellow'), colored(token, 'white')))
     except codegen.CodegenError as err:
         errprint('Eval error: ' + str(err))
         # Reset the interpreter because codegen is now corrupted.

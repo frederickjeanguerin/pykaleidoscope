@@ -1,4 +1,5 @@
 from .mixin import *
+from .source import Source
 
 class Span(EqualityMixin, StrMixin):
     """ Describe a span of text in source code:
@@ -26,8 +27,9 @@ class Span(EqualityMixin, StrMixin):
             self._text = self.source.text[self.start:self.stop]    
         return self._text
 
-def mock(codestr = "mocked_span_codestr"):    
-    return Span(0, len(codestr), source.mock(codestr))
+    @staticmethod    
+    def mock(codestr = "mocked_span_codestr"):    
+        return Span(0, len(codestr), Source.mock(codestr))
 
 
 #---- Some unit tests ----#
@@ -38,10 +40,10 @@ from . import source
 class TestSource(unittest.TestCase):
 
     def test_equality(self):
-        self.assertEqual( mock(), mock() )
+        self.assertEqual( Span.mock(), Span.mock() )
 
     def test_text(self):
-        span = Span(2, 4, source.Source("test", "012345" ))
+        span = Span(2, 4, Source("test", "012345" ))
         self.assertEqual( span.text, "23" )
 
 if __name__ == '__main__':
