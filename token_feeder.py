@@ -8,11 +8,22 @@ class ParseError(Exception):
 class TokenFeeder :
 
     def __init__(self, source):
-        self.lexer = tokens_from(source)
-        self.previous = None
+        self._lexer = tokens_from(source)
+        self._previous = None
         self.current = None
-        self.next = next(self.lexer)
-        self.eat()       
+        self._next = next(self._lexer)
+        self._fetch()       
+
+    def _fetch(self):    
+        """Fetch the next token from the token source."""    
+        self.current = self._next
+        if not self.match(TokenKind.EOF):    
+            self._next = next(self._lexer)
+
+    def _update(self):
+        """Update previous, current and next token."""    
+        self._previous = self.current
+        self._fetch()        
 
     def eat(self, attribute = None):
         """Consume and return the current token; 
@@ -20,14 +31,11 @@ class TokenFeeder :
         """
         if attribute:
             self.expect(attribute)
-        self.previous = self.current
-        self.current = self.next
-        if not self.match(TokenKind.EOF):    
-            self.next = next(self.lexer)
-        return self.previous
+        self._update()    
+        return self._previous
 
     def match(self, token_attribute):
-        """Returns True the the current token matches agains the attribute"""
+        """Returns True the the current token matches agains the attribute."""
         return self.current.match(token_attribute)
 
     def expect(self, token_attribute):

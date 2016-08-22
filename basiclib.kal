@@ -2,41 +2,41 @@
 
 # Sequence operator
 def binary: (lhsexpr rhsexpr) 
-    rhsexpr
+ rhsexpr
 
 # Logical and
 def binary& (P Q) 
-    if P then if Q then 1 else 0 else 0
+ if P then if Q then 1 else 0 else 0
 
 # Logical or
 def binary| (P Q) 
-    if P then 1 else if Q then 1 else 0        
+ if P then 1 else if Q then 1 else 0        
 
 # Logical not
 def unary! (P) 
-    if P then 0 else 1
+ if P then 0 else 1
 
 def unary- (x) 
-    0 - x
+ 0 - x
 
 def binary> (a b) 
-    b < a        
+ b < a        
 
 # Equality
 def binary? (a b) 
-    !(a < b) & !(b < a)
+ !(a < b) & !(b < a)
 
 def max(a b) 
-    if a < b then b else a
+ if a < b then b else a
 
 def min(a b)    
-    if a < b then a else b
+ if a < b then a else b
 
 def abs(a)
-    if a < 0 then -a else a
+ if a < 0 then -a else a
 
 def factorial(n) 
-    if n < 2 then 1 else n * factorial(n-1)
+ if n < 2 then 1 else n * factorial(n-1)
 
 
 # unicode not yet supported        
