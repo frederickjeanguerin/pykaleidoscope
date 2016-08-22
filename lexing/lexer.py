@@ -14,7 +14,7 @@ def tokens_from(source):
         # Skip whitespace
         while feeder.current.isspace():
             feeder.next()
-        # A new token ahead so start recording for a span    
+        # A new token ahead so start recording for a token span    
         feeder.start_span()
         line = feeder.line
         # Identifier or keyword
@@ -50,8 +50,10 @@ def tokens_from(source):
             feeder.next()
             yield Token(TokenKind.OPERATOR, feeder.get_span(),  line )
 
-    feeder.start_span()        
-    yield Token(TokenKind.EOF, feeder.get_span(), feeder.line )
+    feeder.start_span() 
+    EOF_Token = Token(TokenKind.EOF, feeder.get_span(), feeder.line )
+
+    yield EOF_Token 
 
 
 #---- Some unit tests ----#
@@ -136,6 +138,13 @@ class TestLexer(unittest.TestCase):
             \t\t\t10
             ''',
             ['DEF', 'IDENTIFIER', 'NUMBER', 'EOF'])
+
+    def test_lineinfo(self):
+        toks, src = _lex('   line1   \n   line2   ')
+        self.assertEqual(toks[1].text, 'line2')
+        self.assertEqual(toks[1].lineno, 2)
+        self.assertEqual(toks[1].colno, 4)
+
 
 
 #---- Run module tests ----#

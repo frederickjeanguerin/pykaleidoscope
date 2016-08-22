@@ -1,394 +1,350 @@
 
-from lexing.lexer import tokens_from, Token, TokenKind
+from lexing.lexer import TokenKind
 import binop
+from token_feeder import TokenFeeder
 from ast import *
 
-class ParseError(Exception): 
-    """ Expecting two arguments: (message, token). """
-    pass
+PUNCTUATORS = '()[]{};,:'
 
-class Parser(object):
-    """Parser for the Kaleidoscope language.
-    Kaleidoscope source into an AST.
+# toplevel ::= definition | external | expression
+def ast_from(source):
+    """Given a string, returns an AST node representing it."""
+
+    f = TokenFeeder(source)
+
+    while not f.match(TokenKind.EOF):
+        if f.match(TokenKind.EXTERN):
+            yield _parse_external(f)
+        elif f.match(TokenKind.DEF):
+            yield _parse_definition(f)
+        else:
+            yield _parse_expr(f)
+
+
+def binop_info(tok):
+    """ Return a BinOpInfo about the current token.
+        If not an operator, return a precedence of -1 
+        and undefined associativy.
+        Raise an error if the operator is not defined.
     """
-    def __init__(self):
-        self.token_generator = None
-        self.cur_tok = None
+    info = binop.info(tok.text)
+    if info:
+        return info
+    else:    
+        if tok.kind == TokenKind.OPERATOR and tok.text not in PUNCTUATORS:
+            f.throw("Undefined operator")
+        # Return a false binop info that has no precedence    
+        return binop.BinOpInfo(-1, binop.Associativity.UNDEFINED)
+    
 
-    # toplevel ::= definition | external | expression
-    def parse_generator(self, source):
-        """Given a string, returns an AST node representing it."""
-        self.token_generator = tokens_from(source)
-        self.cur_tok = None
-        self._eat() # Fetch first token into the parser
+# identifierexpr
+#   ::= identifier
+#   ::= identifier '(' expression* ')'
+def _parse_identifier_expr(f):
+    id_name = f.current.text
+    f.eat(TokenKind.IDENTIFIER)
 
-        while not self._match(TokenKind.EOF):
-            if self._match(TokenKind.EXTERN):
-                yield self._parse_external()
-            elif self._match(TokenKind.DEF):
-                yield self._parse_definition()
-            else:
-                yield self._parse_expression()
+    # If followed by a '(' it's a call; otherwise, a simple variable ref.
+    if not f.match('('):
+        return Variable(id_name)
 
-    def _eat(self, token_attribute = None):
-        """Consume and return the current token; 
-        If argument present, verify that it matches the expected attribute. 
-        """
-        if token_attribute:
-            self._expect(token_attribute)
-        previous = self.cur_tok    
-        self.cur_tok = next(self.token_generator)
-        return previous
-
-    def _expect(self, token_attribute):
-        """Verify the current token against the given attribute"""
-        if not self._match(token_attribute):
-            self._raise('Expected ' + str(token_attribute))
-
-    def _match(self, token_attribute):
-        """Return true if the current token matches with the given attribute"""
-        return token_attribute in [self.cur_tok.kind, self.cur_tok.text, self.cur_tok.subkind]        
-
-    def _match_then_eat(self, token_attribute):
-        """Return true if the current token matches with the given attribute, eating that token by the way"""
-        if self._match(token_attribute):
-            self._eat()
-            return True
-        return False            
-
-    def _raise(self, message, token = None):
-        """Raise a parse error, passing it a message and the current token"""
-        raise ParseError(message, token or self.cur_tok)
-
-    def binop_info(self):
-        """ Return a BinOpInfo about the current token.
-            If not an operator, return a precedence of -1 
-            and undefined associativy.
-            Raise an error if the operator is not defined.
-        """
-        tok = self.cur_tok
-        info = binop.info(tok.text)
-        if info:
-            return info
-        else:    
-            if tok.kind == TokenKind.OPERATOR and tok.text not in Parser.PUNCTUATORS:
-                self._raise("Undefined operator")
-            # Return a false binop info that has no precedence    
-            return binop.BinOpInfo(-1, binop.Associativity.UNDEFINED)
-        
-
-    # identifierexpr
-    #   ::= identifier
-    #   ::= identifier '(' expression* ')'
-    def _parse_identifier_expr(self):
-        id_name = self.cur_tok.text
-        self._eat(TokenKind.IDENTIFIER)
-
-        # If followed by a '(' it's a call; otherwise, a simple variable ref.
-        if not self._match('('):
-            return Variable(id_name)
-
-        # Ok, it's a call    
-        self._eat('(')
-        args = []
-        if not self._match(')'):
-            while True:
-                args.append(self._parse_expression())
-                if self._match(')'):
-                    break
-                self._eat(',')
-
-        self._eat(')')  
-        return Call(id_name, args)
-
-    # numberexpr ::= number
-    def _parse_number_expr(self):
-        result = Number(self.cur_tok.text)
-        self._eat(TokenKind.NUMBER)
-        return result
-
-    # parenexpr ::= '(' expression ')'
-    def _parse_paren_expr(self):
-        self._eat('(') 
-        expr = self._parse_expression()
-        self._eat(')')
-        return expr
-
-    # primary
-    #   ::= identifierexpr
-    #   ::= numberexpr
-    #   ::= parenexpr
-    #   ::= ifexpr
-    #   ::= forexpr
-    #   ::= unaryexpr
-
-    PUNCTUATORS = '()[]{};,:'
-
-    def _parse_primary(self):
-        if self._match(TokenKind.IDENTIFIER):
-            return self._parse_identifier_expr()
-        elif self._match(TokenKind.NUMBER):
-            return self._parse_number_expr()
-        elif self._match('('):
-            return self._parse_paren_expr()
-        elif self._match(TokenKind.IF):
-            return self._parse_if_expr()
-        elif self._match(TokenKind.FOR):
-            return self._parse_for_expr()
-        elif self._match(TokenKind.VAR):
-            return self._parse_var_expr()            
-        elif self._match(TokenKind.OPERATOR):
-            if self.cur_tok.text in Parser.PUNCTUATORS :
-                self._raise('Expression expected before punctuator')
-            return self._parse_unaryop_expr()
-        elif self._match(TokenKind.EOF):
-            self._raise('Expression expected before end of code')            
-        else:
-            self._raise('Expression expected but met unknown token')
-
-    # ifexpr ::= 'if' expression 'then' expression 'else' expression
-    def _parse_if_expr(self):
-        self._eat(TokenKind.IF)  
-        cond_expr = self._parse_expression()
-        self._eat(TokenKind.THEN)
-        then_expr = self._parse_expression()
-        self._eat(TokenKind.ELSE)
-        else_expr = self._parse_expression()
-        return If(cond_expr, then_expr, else_expr)
-
-    # forexpr ::= 'for' identifier '=' expr ',' expr (',' expr)? 'in' expr
-    def _parse_for_expr(self):
-        self._eat(TokenKind.FOR)  
-        id_name = self.cur_tok.text
-        self._eat(TokenKind.IDENTIFIER)
-        self._eat('=')
-        start_expr = self._parse_expression()
-        self._eat(',')
-        end_expr = self._parse_expression()
-
-        # The step part is optional
-        if self._match_then_eat(','):
-            step_expr = self._parse_expression()
-        else:
-            step_expr = None
-        self._eat(TokenKind.IN)
-        body = self._parse_expression()
-        return For(id_name, start_expr, end_expr, step_expr, body)
-
-    # varexpr ::= 'var' ( identifier ('=' expr)? )+ 'in' expr
-    def _parse_var_expr(self):
-        self._eat(TokenKind.VAR) 
-        vars = []
-
-        # At least one variable name is required
-        self._expect(TokenKind.IDENTIFIER)
-
-        while not self._match(TokenKind.IN):
-            name = self.cur_tok.text
-            self._eat(TokenKind.IDENTIFIER)  
-
-            # Parse the optional initializer
-            if self._match_then_eat('='):
-                init = self._parse_expression()
-            else:
-                init = None
-            vars.append((name, init))
-
-            # Parse the optional comma
-            self._match_then_eat(',')
-
-        self._eat(TokenKind.IN)
-        body = self._parse_expression()
-        return VarIn(vars, body)
-
-    # binoprhs ::= (<binop> primary)*
-    def _parse_binop_rhs(self, expr_prec, lhs):
-        """Parse the right-hand-side of a binary expression.
-        expr_prec: minimal precedence to keep going (precedence climbing).
-        lhs: AST of the left-hand-side.
-        """
+    # Ok, it's a call    
+    f.eat('(')
+    args = []
+    if not f.match(')'):
         while True:
-            cur_prec, cur_assoc = self.binop_info()
-            # If this is a binary operator with precedence lower than the
-            # currently parsed sub-expression, bail out. If it binds at least
-            # as tightly, keep going.
-            # Note that the precedence of non-operators is defined to be -1,
-            # so this condition handles cases when the expression ended.
-            if cur_prec < expr_prec:
-                return lhs
-            op = self.cur_tok.text
-            self._eat(TokenKind.OPERATOR) 
-            rhs = self._parse_primary()
+            args.append(_parse_expr(f))
+            if f.match(')'):
+                break
+            f.eat(',')
 
-            next_prec, next_assoc = self.binop_info()
-            # There are four options:
-            # 1. next_prec > cur_prec: we need to make a recursive call
-            # 2. next_prec == cur_prec and operator is left-associative: 
-            #    no need for a recursive call, the next
-            #    iteration of this loop will handle it.
-            # 3. next_prec == cur_prec and operator is right-associative:
-            #    make a recursive call 
-            # 4. next_prec < cur_prec: no need for a recursive call, combine
-            #    lhs and the next iteration will immediately bail out.
-            if cur_prec < next_prec:
-                rhs = self._parse_binop_rhs(cur_prec + 1, rhs)
+    f.eat(')')  
+    return Call(id_name, args)
 
-            if cur_prec == next_prec and next_assoc == binop.Associativity.RIGHT:
-                rhs = self._parse_binop_rhs(cur_prec, rhs)
+# numberexpr ::= number
+def _parse_number_expr(f):
+    result = Number(f.current.text)
+    f.eat(TokenKind.NUMBER)
+    return result
 
-            # Merge lhs/rhs
-            lhs = Binary(op, lhs, rhs)
+# parenexpr ::= '(' expression ')'
+def _parse_paren_expr(f):
+    f.eat('(') 
+    expr = _parse_expr(f)
+    f.eat(')')
+    return expr
 
-    # expression ::= primary binoprhs
-    def _parse_expression(self):
-        lhs = self._parse_primary()
-        # Start with precedence 0 because we want to bind any operator to the
-        # expression at this point.
-        return self._parse_binop_rhs(0, lhs)
+# primary
+#   ::= identifierexpr
+#   ::= numberexpr
+#   ::= parenexpr
+#   ::= ifexpr
+#   ::= forexpr
+#   ::= unaryexpr
 
-    # unary ::= op primary    
-    def _parse_unaryop_expr(self):   
-        op = self.cur_tok.text
-        self._eat(TokenKind.OPERATOR)
-        rhs = self._parse_primary()
-        return Unary(op, rhs) 
+def _parse_primary(f):
+    if f.match(TokenKind.IDENTIFIER):
+        return _parse_identifier_expr(f)
+    elif f.match(TokenKind.NUMBER):
+        return _parse_number_expr(f)
+    elif f.match('('):
+        return _parse_paren_expr(f)
+    elif f.match(TokenKind.IF):
+        return _parse_if_expr(f)
+    elif f.match(TokenKind.FOR):
+        return _parse_for_expr(f)
+    elif f.match(TokenKind.VAR):
+        return _parse_var_expr(f)            
+    elif f.match(TokenKind.OPERATOR):
+        if f.current.text in PUNCTUATORS :
+            f.throw('Expression expected before punctuator')
+        return _parse_unaryop_expr(f)
+    elif f.match(TokenKind.EOF):
+        f.throw('Expression expected before end of code')            
+    else:
+        f.throw('Expression expected but met unknown token')
 
-    # prototype
-    #   ::= id '(' id* ')'
-    def _parse_prototype(self):
-        idtok = self._eat(TokenKind.IDENTIFIER)
+# ifexpr ::= 'if' expression 'then' expression 'else' expression
+def _parse_if_expr(f):
+    f.eat(TokenKind.IF)  
+    cond_expr = _parse_expr(f)
+    f.eat(TokenKind.THEN)
+    then_expr = _parse_expr(f)
+    f.eat(TokenKind.ELSE)
+    else_expr = _parse_expr(f)
+    return If(cond_expr, then_expr, else_expr)
 
-        self._eat('(')
-        argnames = []
-        while self._match(TokenKind.IDENTIFIER):
-            argnames.append(self._eat().text)
-        self._eat(')')
+# forexpr ::= 'for' identifier '=' expr ',' expr (',' expr)? 'in' expr
+def _parse_for_expr(f):
+    f.eat(TokenKind.FOR)  
+    id_name = f.current.text
+    f.eat(TokenKind.IDENTIFIER)
+    f.eat('=')
+    start_expr = _parse_expr(f)
+    f.eat(',')
+    end_expr = _parse_expr(f)
 
-        if idtok.subkind == TokenKind.BINARY and len(argnames) != 2:
-            self._raise('Binary operator should have 2 operands', idtok)
-        elif idtok.subkind == TokenKind.UNARY and len(argnames) != 1:
-            self._raise('Unary operator should have just one operand', idtok)
+    # The step part is optional
+    if f.match_then_eat(','):
+        step_expr = _parse_expr(f)
+    else:
+        step_expr = None
+    f.eat(TokenKind.IN)
+    body = _parse_expr(f)
+    return For(id_name, start_expr, end_expr, step_expr, body)
 
-        return Prototype(idtok.text, argnames)
+# varexpr ::= 'var' ( identifier ('=' expr)? )+ 'in' expr
+def _parse_var_expr(f):
+    f.eat(TokenKind.VAR) 
+    vars = []
 
-    # external ::= 'extern' prototype
-    def _parse_external(self):
-        self._eat(TokenKind.EXTERN) 
-        return self._parse_prototype()
+    # At least one variable name is required
+    f.expect(TokenKind.IDENTIFIER)
 
-    # definition ::= 'def' prototype expression
-    def _parse_definition(self):
-        self._eat(TokenKind.DEF) 
-        proto = self._parse_prototype()
-        expr = self._parse_expression()
-        return Function(proto, expr)
+    while not f.match(TokenKind.IN):
+        name = f.current.text
+        f.eat(TokenKind.IDENTIFIER)  
+
+        # Parse the optional initializer
+        if f.match_then_eat('='):
+            init = _parse_expr(f)
+        else:
+            init = None
+        vars.append((name, init))
+
+        # Parse the optional comma
+        f.match_then_eat(',')
+    f.eat(TokenKind.IN)
+    body = _parse_expr(f)
+    return VarIn(vars, body)
+
+# binoprhs ::= (<binop> primary)*
+def _parse_binop_rhs(f, expr_prec, lhs):
+    """Parse the right-hand-side of a binary expression.
+    expr_prec: minimal precedence to keep going (precedence climbing).
+    lhs: AST of the left-hand-side.
+    """
+    while True:
+        cur_prec, cur_assoc = binop_info(f.current)
+        # If this is a binary operator with precedence lower than the
+        # currently parsed sub-expression, bail out. If it binds at least
+        # as tightly, keep going.
+        # Note that the precedence of non-operators is defined to be -1,
+        # so this condition handles cases when the expression ended.
+        if cur_prec < expr_prec:
+            return lhs
+        op = f.current.text
+        f.eat(TokenKind.OPERATOR) 
+        rhs = _parse_primary(f)
+
+        next_prec, next_assoc = binop_info(f.current)
+        # There are four options:
+        # 1. next_prec > cur_prec: we need to make a recursive call
+        # 2. next_prec == cur_prec and operator is left-associative: 
+        #    no need for a recursive call, the next
+        #    iteration of this loop will handle it.
+        # 3. next_prec == cur_prec and operator is right-associative:
+        #    make a recursive call 
+        # 4. next_prec < cur_prec: no need for a recursive call, combine
+        #    lhs and the next iteration will immediately bail out.
+        if cur_prec < next_prec:
+            rhs = _parse_binop_rhs(f, cur_prec + 1, rhs)
+
+        if cur_prec == next_prec and next_assoc == binop.Associativity.RIGHT:
+            rhs = _parse_binop_rhs(f, cur_prec, rhs)
+
+        # Merge lhs/rhs
+        lhs = Binary(op, lhs, rhs)
+
+# expression ::= primary binoprhs
+def _parse_expr(f):
+    lhs = _parse_primary(f)
+    # Start with precedence 0 because we want to bind any operator to the
+    # expression at this point.
+    return _parse_binop_rhs(f, 0, lhs)
+
+# unary ::= op primary    
+def _parse_unaryop_expr(f):   
+    op = f.current.text
+    f.eat(TokenKind.OPERATOR)
+    rhs = _parse_primary(f)
+    return Unary(op, rhs) 
+
+# prototype
+#   ::= id '(' id* ')'
+def _parse_prototype(f):
+    idtok = f.eat(TokenKind.IDENTIFIER)
+
+    f.eat('(')
+    argnames = []
+    while f.match(TokenKind.IDENTIFIER):
+        argnames.append(f.eat().text)
+    f.eat(')')
+
+    if idtok.subkind == TokenKind.BINARY and len(argnames) != 2:
+        f._raise('Binary operator should have 2 operands', idtok)
+    elif idtok.subkind == TokenKind.UNARY and len(argnames) != 1:
+        f._raise('Unary operator should have just one operand', idtok)
+
+    return Prototype(idtok.text, argnames)
+
+# external ::= 'extern' prototype
+def _parse_external(f):
+    f.eat(TokenKind.EXTERN) 
+    return _parse_prototype(f)
+
+# definition ::= 'def' prototype expression
+def _parse_definition(f):
+    f.eat(TokenKind.DEF) 
+    proto = _parse_prototype(f)
+    expr = _parse_expr(f)
+    return Function(proto, expr)
 
 #---- Some unit tests ----#
 
 import unittest
 from lexing.source import Source
 
-def parse_toplevel(buf, parser  = Parser()):
-    return next(parser.parse_generator(Source("parsing tests", buf)))
+def parse_toplevel(buf):
+    return next(ast_from(Source("parsing tests", buf)))
 
 class TestParser(unittest.TestCase):
 
-    def _assert_ast(self, ast, expected_flattened_ast):
-        self.assertEqual(ast.flatten(), expected_flattened_ast)
+    def _assert_ast(f, ast, expected_flattened_ast):
+        f.assertEqual(ast.flatten(), expected_flattened_ast)
 
-    def _assert_parse(self, codestr, expected_flattened_ast):
-        self.assertEqual(
+    def _assert_parse(f, codestr, expected_flattened_ast):
+        f.assertEqual(
             parse_toplevel(codestr).flatten(), 
             expected_flattened_ast)
 
-    def _assert_body(self, toplevel, expected):
+    def _assert_body(f, toplevel, expected):
         """Assert the flattened body of the given toplevel function"""
-        self.assertIsInstance(toplevel, Function)
-        self.assertEqual(toplevel.body.flatten(), expected)
+        f.assertIsInstance(toplevel, Function)
+        f.assertEqual(toplevel.body.flatten(), expected)
 
-    def test_basic(self):
+    def test_basic(f):
         ast = parse_toplevel('2')
-        self.assertIsInstance(ast, Number)
-        self.assertEqual(ast.val, '2')
+        f.assertIsInstance(ast, Number)
+        f.assertEqual(ast.val, '2')
 
-    def test_basic_with_flattening(self):
-        self._assert_parse('2', ['Number', '2'])
-        self._assert_parse('foobar', ['Variable', 'foobar'])
+    def test_basic_with_flattening(f):
+        f._assert_parse('2', ['Number', '2'])
+        f._assert_parse('foobar', ['Variable', 'foobar'])
 
-    def test_expr_singleprec(self):
-        self._assert_parse('2+ 3-4',
+    def test_expr_singleprec(f):
+        f._assert_parse('2+ 3-4',
             ['Binary',
                 '-', ['Binary', '+', ['Number', '2'], ['Number', '3']],
                 ['Number', '4']])
 
-    def test_expr_multiprec(self):
-        self._assert_parse('2+3*4-9',
+    def test_expr_multiprec(f):
+        f._assert_parse('2+3*4-9',
             ['Binary', '-',
                 ['Binary', '+',
                     ['Number', '2'],
                     ['Binary', '*', ['Number', '3'], ['Number', '4']]],
                 ['Number', '9']])
 
-    def test_expr_parens(self):
-        self._assert_parse('2*(3-4)*7',
+    def test_expr_parens(f):
+        f._assert_parse('2*(3-4)*7',
             ['Binary', '*',
                 ['Binary', '*',
                     ['Number', '2'],
                     ['Binary', '-', ['Number', '3'], ['Number', '4']]],
                 ['Number', '7']])
 
-    def test_externals(self):
-        self._assert_parse('extern sin(arg)', ['Prototype', 'sin', ['arg']])
+    def test_externals(f):
+        f._assert_parse('extern sin(arg)', ['Prototype', 'sin', ['arg']])
 
-        self._assert_parse('extern Foobar(nom denom abom)',
+        f._assert_parse('extern Foobar(nom denom abom)',
             ['Prototype', 'Foobar', ['nom', 'denom', 'abom']])
 
-    def test_funcdef(self):
-        self._assert_parse('def foo(x) 1 + bar(x)',
+    def test_funcdef(f):
+        f._assert_parse('def foo(x) 1 + bar(x)',
             ['Function', ['Prototype', 'foo', ['x']],
                 ['Binary', '+',
                     ['Number', '1'],
                     ['Call', 'bar', [['Variable', 'x']]]]])
 
-    def test_unary(self):
-        p = Parser()
-        ast = parse_toplevel('def unary!(x) 0 - x', p)
-        self.assertIsInstance(ast, Function)
+    def test_unary(f):
+        ast = parse_toplevel('def unary!(x) 0 - x')
+        f.assertIsInstance(ast, Function)
         proto = ast.proto
-        self.assertIsInstance(proto, Prototype)
-        self.assertEqual(proto.name, 'unary!')
+        f.assertIsInstance(proto, Prototype)
+        f.assertEqual(proto.name, 'unary!')
 
-        ast = parse_toplevel('!a + !b - !!c', p)
-        self._assert_ast(ast,
+        ast = parse_toplevel('!a + !b - !!c')
+        f._assert_ast(ast,
             ['Binary', '-',
                 ['Binary', '+',
                     ['Unary', '!', ['Variable', 'a']],
                     ['Unary', '!', ['Variable', 'b']]],
                 ['Unary', '!', ['Unary', '!', ['Variable', 'c']]]])
 
-    def test_binary_op(self):
+    def test_binary_op(f):
         ast = parse_toplevel('def binary$ (a b) a + b')
-        self.assertIsInstance(ast, Function)
+        f.assertIsInstance(ast, Function)
         proto = ast.proto
-        self.assertIsInstance(proto, Prototype)
-        self.assertEqual(proto.name, 'binary$')
+        f.assertIsInstance(proto, Prototype)
+        f.assertEqual(proto.name, 'binary$')
 
 
-    def test_binop_right_associativity(self):
-        self._assert_parse('x = y = 10 + 5',
+    def test_binop_right_associativity(f):
+        f._assert_parse('x = y = 10 + 5',
             ['Binary', '=',
                 ['Variable', 'x'],
                 ['Binary', '=',
                     ['Variable', 'y'],
                     ['Binary', '+', ['Number', '10'], ['Number', '5']]]])
 
-    def test_var(self):
-        self._assert_parse('var x in x',
+    def test_var(f):
+        f._assert_parse('var x in x',
             ['VarIn', 
                 [('x', None)],
                 ['Variable', 'x']])
 
-        self._assert_parse('var x y = 10 in x',
+        f._assert_parse('var x y = 10 in x',
             ['VarIn', 
                 [('x', None), ('y', Number("10"))],
                 ['Variable', 'x']])

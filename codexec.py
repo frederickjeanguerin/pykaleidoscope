@@ -4,7 +4,7 @@ import colorama ; colorama.init()
 from termcolor import colored, cprint
 
 from ast import *
-from parsing import *
+from parsing import ast_from
 from codegen import *
 from lexing.source import Source
 
@@ -81,7 +81,7 @@ class KaleidoscopeEvaluator(object):
         Yield a namedtuple Result with None for definitions and externs, and the evaluated expression
         value for toplevel expressions.
         """
-        for ast in Parser().parse_generator(source):
+        for ast in ast_from(source):
             yield self._eval_ast(ast, **options)
 
     def _eval_ast(self, ast, optimize=True, llvmdump=False, noexec = False, parseonly = False, verbose = False):

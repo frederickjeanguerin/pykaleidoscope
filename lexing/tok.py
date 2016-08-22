@@ -61,20 +61,24 @@ class Token(EqualityMixin, StrMixin):
 
     @property
     def colno(self):
-        return self.span.start - self.line.pos    
+        return self.span.start - self.line.pos + 1    
 
     @property
     def endcolno(self):
-        return self.span.stop - self.line.pos    
+        return self.span.stop - self.line.pos + 1   
 
     def __str__(self):
         if(self.kind == TokenKind.EOF):
             return "EOF"
         return self.text    
 
+    def match(self, attribute):
+        """Return true if the token matches with the given attribute"""
+        return attribute in (self.kind, self.text, self.subkind)        
+
     @staticmethod
-    def mock(kind = TokenKind.IDENTIFIER, identifierstr = 'mocked_token_text'):
-        return Token(kind, Span.mock(identifierstr), Line.mock(identifierstr)) 
+    def mock(kind = TokenKind.IDENTIFIER, identifierstr = 'mocked_token_text', subkind = None):
+        return Token(kind, Span.mock(identifierstr), Line.mock(identifierstr), subkind) 
 
 #---- Some unit tests ----#
 
@@ -88,6 +92,12 @@ class TestTok(unittest.TestCase):
 
     def test_token_equality(self):
         self.assertEqual(Token.mock(), Token.mock())
+
+    def test_token_match(self):
+        t = Token.mock(TokenKind.IDENTIFIER, 'binary+', TokenKind.BINARY)
+        self.assertTrue(t.match(TokenKind.IDENTIFIER))
+        self.assertTrue(t.match(TokenKind.BINARY))
+        self.assertTrue(t.match('binary+'))
 
 if __name__ == '__main__':
     unittest.main()
