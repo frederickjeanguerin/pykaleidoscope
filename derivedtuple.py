@@ -39,6 +39,16 @@ class TestDerivedTuple(unittest.TestCase):
         self.assertEqual( p, q )
         self.assertEqual( p.sum, 9 )
 
+
+    def test_extensiontuple(self):
+        Point = derivedtuple('Point', 'x y', _PointMixin)
+        Point3D = derivedtuple('Point3D', 'x y z', Point)
+
+        p = Point3D(1, 2, 3)
+        self.assertEqual( p.sum, 3 )
+        self.assertTrue( isinstance(p, _PointMixin) )
+        
+
 if __name__ == '__main__':
     unittest.main()            
 

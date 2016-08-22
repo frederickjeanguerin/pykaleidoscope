@@ -16,7 +16,7 @@ def tokens_from(source):
             feeder.next()
         # A new token ahead so start recording for a span    
         feeder.start_span()
-        line = feeder.get_line()
+        line = feeder.line
         # Identifier or keyword
         if feeder.current.isalpha():
             while feeder.current.isalnum() or feeder.current == '_':
@@ -51,7 +51,7 @@ def tokens_from(source):
             yield Token(TokenKind.OPERATOR, feeder.get_span(),  line )
 
     feeder.start_span()        
-    yield Token(TokenKind.EOF, feeder.get_span(), feeder.get_line() )
+    yield Token(TokenKind.EOF, feeder.get_span(), feeder.line )
 
 
 #---- Some unit tests ----#

@@ -1,36 +1,40 @@
-from derivedtuple import derivedtuple
+from collections import namedtuple
 from .source import Source
 
-class LineMixin:
+class Line(namedtuple('_Line', 'no pos source')):
+    """
+    Information about a line in sourcecode.
+    Works in combination with char_feeder to assure proper instantiation.
+    """
 
-    @property
-    def endpos(self):
-        """ Offset in source of the end of the line, including \n """
-
-        pos = self.pos
-        code = self.source.text
-        codelen = self.source.len
-
-        while pos < codelen :
-            if code[pos] == '\n':
-                return pos + 1
-            pos += 1
-        return pos
+    def __init__(self, no, pos, source):
+        # The following are unknown at initialization,
+        # But will be set when known
+        self.endpos = None
+        self.indentpos = None
+        self._text = None
 
     @property
     def len(self):
-        return self.endpos - self.pos        
+        "None if endpos is unknown."
+        return self.endpos and self.endpos - self.pos        
+
+    @property
+    def indentsize(self):
+        "None if indentpos is unknown."
+        return self.indentpos and self.indentpos - self.pos        
 
     @property
     def text(self):
-        return self.source.text[self.pos:self.endpos]        
+        "None if endpos is unkwnown."
+        if self.endpos is None : return None
+        # Cache result on the first time needed
+        self._text = self._text or self.source.text[self.pos:self.endpos]
+        return self._text     
 
     @staticmethod
     def mock(codestr, no=1, pos=0):
         return Line(no, pos, Source.mock(codestr))    
-
-Line = derivedtuple("Line", "no pos source", LineMixin)
-
 
 #---- Some unit tests ----#
 
@@ -41,35 +45,21 @@ class TestLine(unittest.TestCase):
     def test_line(self):
 
         line = Line.mock("")
-        self.assertEqual( line.endpos, 0 )
+        self.assertEqual( line.len, None )
+        self.assertEqual( line.text, None )
+        self.assertEqual( line.indentsize, None )
+        line.endpos = 0
         self.assertEqual( line.len, 0 )
         self.assertEqual( line.text, "" )
+        line.indentpos = 0
+        self.assertEqual( line.indentsize, 0 )
 
-        line = Line.mock("\n")
-        self.assertEqual( line.endpos, 1 )
-        self.assertEqual( line.len, 1 )
-        self.assertEqual( line.text, "\n" )
-
-        line = Line.mock("Allo!")
-        self.assertEqual( line.endpos, 5 )
-        self.assertEqual( line.len, 5 )
-        self.assertEqual( line.text, "Allo!" )
-
-        line = Line.mock("Allo!\n")
-        self.assertEqual( line.endpos, 6 )
-        self.assertEqual( line.len, 6 )
-        self.assertEqual( line.text, "Allo!\n" )
-
-        line = Line.mock("Bonjour\nles amis!")
-        self.assertEqual( line.endpos, 8 )
-        self.assertEqual( line.len, 8 )
-        self.assertEqual( line.text, "Bonjour\n" )
-
-        line = Line.mock("Bonjour\nles amis!", 2, 8)
-        self.assertEqual( line.endpos, 17 )
-        self.assertEqual( line.len, 9 )
-        self.assertEqual( line.text, "les amis!" )
-
+        line = Line.mock("  Allo!")
+        line.endpos = 7
+        self.assertEqual( line.len, 7 )
+        self.assertEqual( line.text, "  Allo!" )
+        line.indentpos = 2
+        self.assertEqual( line.indentsize, 2 )
 
 if __name__ == '__main__':
     unittest.main()            
