@@ -10,20 +10,24 @@ class TokenFeeder :
     def __init__(self, source):
         self._lexer = tokens_from(source)
         self._previous = None
-        self.current = None
+        self._current = None
         self._next = next(self._lexer)
         self._fetch()       
 
     def _fetch(self):    
         """Fetch the next token from the token source."""    
-        self.current = self._next
+        self._current = self._next
         if not self.match(TokenKind.EOF):    
             self._next = next(self._lexer)
 
     def _update(self):
         """Update previous, current and next token."""    
-        self._previous = self.current
+        self._previous = self._current
         self._fetch()        
+
+    @property
+    def current(self):
+        return self._current    
 
     def eat(self, attribute = None):
         """Consume and return the current token; 
@@ -31,12 +35,12 @@ class TokenFeeder :
         """
         if attribute:
             self.expect(attribute)
-        self._update()    
+        self._update()
         return self._previous
 
     def match(self, token_attribute):
         """Returns True the the current token matches agains the attribute."""
-        return self.current.match(token_attribute)
+        return self._current.match(token_attribute)
 
     def expect(self, token_attribute):
         """Verify the current token against the given attribute"""
