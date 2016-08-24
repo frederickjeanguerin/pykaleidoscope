@@ -5,10 +5,12 @@ from .line import Line
 
 @unique
 class TokenKind(Enum):
-    EOF = -1
     IDENTIFIER = -4
     NUMBER = -5
     OPERATOR = -6
+
+    # Virtual Tokens are positive
+    EOF = +1
     
     # Keywords are less than -100
     DEF = -101
@@ -21,6 +23,14 @@ class TokenKind(Enum):
     BINARY = -108
     UNARY = -109
     VAR = -110
+
+    @property
+    def is_keyword(self):
+        return self.value < 100
+
+    @property    
+    def is_virtual(self):
+        return self.value > 0
 
     @staticmethod
     def get_keyword(keywordname):
@@ -44,6 +54,10 @@ class Token(EqualityMixin, StrMixin):
         self.subkind = subkind
 
     @property
+    def eof(self):
+        return self.kind is TokenKind.EOF    
+
+    @property
     def value(self):
         return self.span.text    
 
@@ -60,6 +74,26 @@ class Token(EqualityMixin, StrMixin):
         return self.line.no    
 
     @property
+    def indent(self):
+        """ Indentation of the line on which sits that token.
+            Indentation of EOF is always -1.
+        """
+        if self.eof :
+            return -1
+        else:
+            return self.line.indentsize    
+
+    @property
+    def linein(self):
+        """ Line number on which sits the token.
+            This number is always lastline + 10 for EOF.
+        """
+        if self.eof :
+            return self.lineno + 10
+        else:
+            return self.lineno    
+
+    @property
     def colno(self):
         return self.span.start - self.line.pos + 1    
 
@@ -68,8 +102,8 @@ class Token(EqualityMixin, StrMixin):
         return self.span.stop - self.line.pos + 1   
 
     def __str__(self):
-        if(self.kind == TokenKind.EOF):
-            return "EOF"
+        if self.kind.is_virtual:
+            return self.kind.name
         return self.text    
 
     def match(self, attribute):
@@ -77,14 +111,22 @@ class Token(EqualityMixin, StrMixin):
         return attribute in (self.kind, self.text, self.subkind)        
 
     @staticmethod
-    def mock(kind = TokenKind.IDENTIFIER, identifierstr = 'mocked_token_text', subkind = None):
-        return Token(kind, Span.mock(identifierstr), Line.mock(identifierstr), subkind) 
+    def mock(kind = TokenKind.IDENTIFIER, text = 'mocked_token_text', subkind = None):
+        return Token(kind, Span.mock(text), Line.mock(text), subkind) 
 
 #---- Some unit tests ----#
 
 import unittest
 
 class TestTok(unittest.TestCase):
+
+    def test_token_kind(self):
+        self.assertTrue(TokenKind.IF.is_keyword)
+        self.assertTrue(TokenKind.EOF.is_virtual)
+
+    def test_token_str(self):
+        self.assertEqual(str(Token.mock(text = "some_text")), "some_text")
+        self.assertEqual(str(Token.mock(TokenKind.EOF, '')), "EOF")
 
     def test_get_keyword(self):
         self.assertEqual(TokenKind.get_keyword('if'), TokenKind.IF)

@@ -2,6 +2,7 @@
 from .tok import Token, TokenKind
 from .char_feeder import CharFeeder
 
+
 def tokens_from(source):
     """Lexer for Kaleidoscope.
     Returns a generator that can be queried for tokens. 
@@ -67,6 +68,7 @@ def _lex(codestr):
     src = Source.mock(codestr)
     return list(tokens_from(src)), src
 
+
 class TestLexer(unittest.TestCase):
 
     def _assert_sametok(self, tok1, tok2):
@@ -75,8 +77,8 @@ class TestLexer(unittest.TestCase):
         self.assertEqual(tok1.text, tok2.text)
         self.assertEqual(tok1.kind, tok2.kind)
 
-    def _assert_lex(self, codestr, expected_tokens):
-        tokens, src = _lex(codestr)
+    def _assert_lex(self, codestr, expected_tokens, lex = _lex):
+        tokens, src = lex(codestr)
         self.assertEqual(len(tokens), len(expected_tokens) + 1)
         for i, tok in enumerate(tokens[:-2]):
             self.assertEqual(tok.kind.name, expected_tokens[i][0])
@@ -86,9 +88,9 @@ class TestLexer(unittest.TestCase):
                 
         self._assert_sametok(tokens[-1], Token.mock(TokenKind.EOF, ''))    
 
-    def _assert_kinds(self, codestr, kinds):
+    def _assert_kinds(self, codestr, kinds, lex = _lex):
         """Assert that the list of toks has the given kinds."""
-        toks, src = _lex(codestr)
+        toks, src = lex(codestr)
         self.assertEqual([t.kind.name for t in toks], kinds)
 
     def test_lexer_empty(self):
@@ -140,10 +142,13 @@ class TestLexer(unittest.TestCase):
             ['DEF', 'IDENTIFIER', 'NUMBER', 'EOF'])
 
     def test_lineinfo(self):
-        toks, src = _lex('   line1   \n   line2   ')
+        toks, src = _lex('   line1   \n   line2  line2   ')
         self.assertEqual(toks[1].text, 'line2')
         self.assertEqual(toks[1].lineno, 2)
         self.assertEqual(toks[1].colno, 4)
+        self.assertEqual(toks[1].indent, 3)
+        self.assertEqual(toks[2].indent, 3)
+
 
 
 
@@ -151,3 +156,4 @@ class TestLexer(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+

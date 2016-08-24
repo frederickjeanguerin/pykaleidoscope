@@ -1,9 +1,8 @@
-from lexing.lexer import tokens_from, Token, TokenKind
+from lexing.lexer import tokens_from, Token, TokenKind, Span
 
 class ParseError(Exception): 
     """ Expecting two arguments: (message, token). """
     pass
-
 
 class TokenFeeder :
 
@@ -17,7 +16,7 @@ class TokenFeeder :
     def _fetch(self):    
         """Fetch the next token from the token source."""    
         self._current = self._next
-        if not self.match(TokenKind.EOF):    
+        if not self._current.eof:    
             self._next = next(self._lexer)
 
     def _update(self):
