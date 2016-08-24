@@ -116,7 +116,7 @@ def _parseStmt(feeder):
             break
         # If there is another line, then error
         if indent_shift == 0:
-            raise IndentError(feeder.current.line, "There should be a blank line before this one or the previous one, or this line should be indented or outdented.")
+            raise IndentError(feeder.previous.line, "This line should be followed or preceded by a blanck line.")
         # Otherwise, there is a new indentation, so just loop
         assert indent_shift > 0    
         
@@ -217,40 +217,50 @@ class TestIndenter(unittest.TestCase):
                  'end' ]   
             ])
 
+
     def test_indent_error(self):
 
-        with self.assertRaises(IndentError):
+        with self.assertRaises(IndentError) as err:
             _parse("""
                 if true
-                 this line not indented enough
-                """) 
+                 ERROR this line not indented enough
+                """)
+        self.assertEqual(err.exception.line.no, 3)         
 
-        with self.assertRaises(IndentError):
+
+        with self.assertRaises(IndentError) as err:
             _parse("""
                 if true
-                            this line indented too much
-                """) 
+                            ERROR this line indented too much
+                """)
+        self.assertEqual(err.exception.line.no, 3)         
+                 
 
-        with self.assertRaises(IndentError):
+        with self.assertRaises(IndentError) as err:
             _parse("""
                 if true
-            this line outdented
+            ERROR this line outdented
                 """) 
+        self.assertEqual(err.exception.line.no, 3)         
 
-        with self.assertRaises(IndentError):
+
+        with self.assertRaises(IndentError) as err:
             _parse("""
                 if true
                     this line ok
-                  this line not recovering previous indentation  
-                """) 
+                  ERROR this line not recovering previous indentation  
+                """)
+        self.assertEqual(err.exception.line.no, 4)         
+                 
 
-        with self.assertRaises(IndentError):
+        with self.assertRaises(IndentError) as err:
             _parse("""
                 if true
                     this line ok
+                ERROR this line should be preceeded or followed by a blank line 
                 this line ok
-                this line should be preceeded by a blank line   
                 """) 
+        self.assertEqual(err.exception.line.no, 4)         
 
 
 #---- Run module tests ----#
