@@ -45,21 +45,30 @@ class TokenKind(Enum):
 
 
 
-class Token(namedtuple('_Token', 'kind pos text line')):
-    """ Token descriptor : immutable """
+class Token(namedtuple('_Token', 'kind text pos line')):
+    """ 
+        A token from the lexing phase of compilation. 
+    
+        kind: TokenKind
+        text: str
+        pos: offset of the token in the source code, starting at 0
+        line: Line on which sits the token   
+    """
 
-    def __new__(cls, kind, pos, text, line, subkind = None):
-        self = super(Token,cls).__new__(cls, kind, pos, text, line)
+    def __new__(cls, kind, text, pos, line, subkind = None):
+        self = super(Token,cls).__new__(cls, kind, text, pos, line)
         self.subkind = subkind
         return self
 
-    def __init__(cls, kind, pos, text, line, subkind = None):
-        # Init already done in __new__
+    def __init__(cls, kind, text, pos, line, subkind = None):
+        # Initialisation already done in __new__
         pass
 
 
     @property
     def eof(self):
+        """ True if token is and end of file marker, 
+            i.e. the last token from source"""
         return self.kind is TokenKind.EOF    
 
     @property
@@ -76,29 +85,12 @@ class Token(namedtuple('_Token', 'kind pos text line')):
         return self.line.no    
 
     @property
-    def indent(self):
-        """ Indentation of the line on which sits that token.
-            Indentation of EOF is always -1.
-        """
-        if self.eof :
-            return -1
-        else:
-            return self.line.indentsize    
-
-    @property
-    def linein(self):
-        """ Line number on which sits the token.
-            This number is always lastline + 10 for EOF.
-        """
-        if self.eof :
-            return self.lineno + 10
-        else:
-            return self.lineno    
-
-    @property
     def colno(self):
-        return self.pos - self.line.pos + 1    
+        return self.pos - self.line.pos + 1
 
+    @property
+    def source(self):
+        return self.line.source    
 
     def __str__(self):
         return self.text    
@@ -109,7 +101,7 @@ class Token(namedtuple('_Token', 'kind pos text line')):
 
     @staticmethod
     def mock(kind = TokenKind.IDENTIFIER, text = 'mocked_token_text', subkind = None):
-        return Token(kind, 0, text, Line.mock(text), subkind) 
+        return Token(kind, text, 0, Line.mock(text), subkind) 
 
 #---- Some unit tests ----#
 

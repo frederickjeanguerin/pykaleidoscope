@@ -87,20 +87,43 @@ class IndenterFeeder :
             self.current = next(self._tokens)
 
     @property
+    def lineno(self):
+        """ Line no on which sits the current token.
+            That line is always very far for EOF, because EOF 
+            is always considered sitting on many lines 
+            after the last real token.
+        """
+        if self.current.eof :
+            return self.current.lineno + 10
+        else:
+            return self.current.lineno 
+
+    @property
+    def indent(self):
+        """ Indentation of the line on which sits the current token.
+            Indentation of EOF is always -1.
+            Because EOF never match any indentation level.
+        """
+        if self.current.eof :
+            return -1
+        else:
+            return self.current.line.indentsize                       
+
+    @property
     def line_gap(self):
         """ Line gap between current and previous token
             0 if both are on the same line
             1 if current on the next line
             2 if there is a blank line in between, etc.
         """
-        return self.current.linein - self.previous.linein        
+        return self.lineno - self.previous.lineno        
 
 
 def _parseBlock(feeder):
     assert not feeder.current.eof
     stmts = list()
-    indent = feeder.current.indent 
-    while feeder.current.indent == indent:
+    indent = feeder.indent 
+    while feeder.indent == indent:
         stmts.append(_parseStmt(feeder))
     return Block(stmts)    
 
@@ -109,17 +132,17 @@ def _parseLine(feeder, tokblocks):
     assert not feeder.current.eof
 
     # Eat up the line
-    linein = feeder.current.linein
-    while feeder.current.linein == linein :
+    lineno = feeder.lineno
+    while feeder.lineno == lineno :
         tokblocks.append(feeder.current)
         feeder.fetch()
 
 
 def _parseStmt(feeder):
     tokblocks = []
-    indent = feeder.current.indent
+    indent = feeder.indent
     _parseLine(feeder, tokblocks)
-    indent_shift = feeder.current.indent - indent
+    indent_shift = feeder.indent - indent
     # While there is indentation 
     while indent_shift > 0:  
         if indent_shift == 1 :
@@ -130,7 +153,7 @@ def _parseStmt(feeder):
         tokblocks.append(_parseBlock(feeder))
 
         # Check indentation after the block        
-        indent_shift = feeder.current.indent - indent
+        indent_shift = feeder.indent - indent
         # If indentation not recovered, that is bad
         if indent_shift > 0 :
             raise IndentError(feeder.current.line)
@@ -142,7 +165,7 @@ def _parseStmt(feeder):
         _parseLine(feeder, tokblocks)
 
         # Check indentation after the line
-        indent_shift = feeder.current.indent - indent
+        indent_shift = feeder.indent - indent
         # If there is an unindent or if there is a blank line, end statement
         if indent_shift < 0 or (indent_shift == 0 and feeder.line_gap >= 2):
             break
@@ -163,8 +186,8 @@ def stmts_from(token_gen):
     if feeder.current.eof:
         return
     # TODO warn if initial indent_level > 0
-    indent = feeder.current.indent
-    while feeder.current.indent == indent:
+    indent = feeder.indent
+    while feeder.indent == indent:
         yield _parseStmt(feeder)
     # If there are residual tokens,
     # It's because they are badly indented.    

@@ -18,8 +18,8 @@ def tokens_from(source):
         while feeder.current.isspace():
             feeder.next()
         # A new token starts here    
-        token_pos = feeder.pos    
         token_line = feeder.line
+        token_pos = feeder.pos   
         # Identifier or keyword
         if feeder.current.isalpha():
             while feeder.current.isalnum() or feeder.current == '_':
@@ -29,21 +29,21 @@ def tokens_from(source):
             # Operator identifier
             if kind in [TokenKind.BINARY, TokenKind.UNARY]:
                 if feeder.is_empty() or feeder.current.isspace():
-                    yield Token(TokenKind.IDENTIFIER, token_pos, token_text, token_line)
+                    yield Token(TokenKind.IDENTIFIER, token_text, token_pos, token_line)
                 else :
                     feeder.next()  # Add operator to identifier
-                    yield Token(TokenKind.IDENTIFIER, token_pos, token_text + feeder.current, token_line, kind)
+                    yield Token(TokenKind.IDENTIFIER, token_text + feeder.current, token_pos, token_line, kind)
             # Keyword         
             elif kind:
-                yield Token(kind, token_pos, token_text, token_line)
+                yield Token(kind, token_text, token_pos, token_line)
             # Identifier    
             else:
-                yield Token(TokenKind.IDENTIFIER, token_pos, token_text, token_line)
+                yield Token(TokenKind.IDENTIFIER, token_text, token_pos, token_line)
         # Number
         elif feeder.current.isdigit() or feeder.current == '.':
             while feeder.current.isdigit() or feeder.current == '.':
                 feeder.next()
-            yield Token(TokenKind.NUMBER, token_pos, source[token_pos:feeder.pos] , token_line )
+            yield Token(TokenKind.NUMBER, source[token_pos:feeder.pos], token_pos, token_line )
         # Comment
         elif feeder.current == '#':
             while feeder.current and feeder.current not in '\r\n':
@@ -51,9 +51,9 @@ def tokens_from(source):
         # Operator or operator special identifier
         elif feeder.current:
             feeder.next()
-            yield Token(TokenKind.OPERATOR, token_pos, source[token_pos:feeder.pos], token_line )
+            yield Token(TokenKind.OPERATOR, source[token_pos:feeder.pos], token_pos, token_line )
 
-    yield Token(TokenKind.EOF, feeder.pos, '<EOF>', feeder.line )
+    yield Token(TokenKind.EOF, '<EOF>', feeder.pos, feeder.line )
 
 
 #---- Some unit tests ----#
