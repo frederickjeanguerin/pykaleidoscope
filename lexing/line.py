@@ -1,5 +1,4 @@
 from collections import namedtuple
-from .source import Source
 
 class Line(namedtuple('_Line', 'no pos source')):
     """
@@ -29,12 +28,12 @@ class Line(namedtuple('_Line', 'no pos source')):
         "None if endpos is unkwnown."
         if self.endpos is None : return None
         # Cache result on the first time needed
-        self._text = self._text or self.source.text[self.pos:self.endpos]
+        self._text = self._text or self.source[self.pos:self.endpos]
         return self._text     
 
     @staticmethod
-    def mock(codestr, no=1, pos=0):
-        return Line(no, pos, Source.mock(codestr))    
+    def mock(source, no=1, pos=0):
+        return Line(no, pos, source)    
 
 #---- Some unit tests ----#
 

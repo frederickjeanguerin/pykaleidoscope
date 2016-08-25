@@ -1,5 +1,4 @@
 from collections import namedtuple
-from .source import Source
 
 class Span(namedtuple('_Span', 'start stop source')):
     """ Span of text in source code: immutable
@@ -23,12 +22,12 @@ class Span(namedtuple('_Span', 'start stop source')):
             NB Slices in Python return string copies, 
             which is expensive, so we cache the result
         """    
-        self._text = self._text or self.source.text[self.start:self.stop]    
+        self._text = self._text or self.source[self.start:self.stop]    
         return self._text
 
     @staticmethod    
-    def mock(codestr = "mocked_span_codestr"):    
-        return Span(0, len(codestr), Source.mock(codestr))
+    def mock(source = "mocked_span_codestr"):    
+        return Span(0, len(source), source)
 
 
 #---- Some unit tests ----#
@@ -42,8 +41,8 @@ class __TestSpan(unittest.TestCase):
 
     def test_text(self):
         
-        span1 = Span(2, 4, Source("test", "012345" ))
-        span2 = Span(2, 4, Source("test", "012345" ))
+        span1 = Span(2, 4, "012345" )
+        span2 = Span(2, 4, "012345" )
         self.assertEqual( span1, span2 )
         self.assertEqual( span1.text, "23" )
         self.assertEqual( span1, span2 )

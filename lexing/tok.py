@@ -1,6 +1,5 @@
 from enum import *
-from .mixin import * 
-from .span import Span
+from collections import namedtuple
 from .line import Line
 
 @unique
@@ -44,14 +43,20 @@ class TokenKind(Enum):
         return None    
 
 
-class Token(EqualityMixin, StrMixin):
+
+
+class Token(namedtuple('_Token', 'kind pos text line')):
     """ Token descriptor : immutable """
 
-    def __init__(self, kind, span, line, subkind = None):
-        self.kind = kind
-        self.span = span
-        self.line = line
+    def __new__(cls, kind, pos, text, line, subkind = None):
+        self = super(Token,cls).__new__(cls, kind, pos, text, line)
         self.subkind = subkind
+        return self
+
+    def __init__(cls, kind, pos, text, line, subkind = None):
+        # Init already done in __new__
+        pass
+
 
     @property
     def eof(self):
@@ -59,15 +64,12 @@ class Token(EqualityMixin, StrMixin):
 
     @property
     def value(self):
-        return self.span.text    
-
-    @property
-    def text(self):
-        return self.span.text    
+        "Deprecated: Use text property instead"
+        return self.text    
 
     @property
     def len(self):
-        return self.span.len    
+        return len(self.text)    
 
     @property
     def lineno(self):
@@ -95,15 +97,10 @@ class Token(EqualityMixin, StrMixin):
 
     @property
     def colno(self):
-        return self.span.start - self.line.pos + 1    
+        return self.pos - self.line.pos + 1    
 
-    @property
-    def endcolno(self):
-        return self.span.stop - self.line.pos + 1   
 
     def __str__(self):
-        if self.kind.is_virtual:
-            return self.kind.name
         return self.text    
 
     def match(self, attribute):
@@ -112,7 +109,7 @@ class Token(EqualityMixin, StrMixin):
 
     @staticmethod
     def mock(kind = TokenKind.IDENTIFIER, text = 'mocked_token_text', subkind = None):
-        return Token(kind, Span.mock(text), Line.mock(text), subkind) 
+        return Token(kind, 0, text, Line.mock(text), subkind) 
 
 #---- Some unit tests ----#
 
@@ -126,7 +123,6 @@ class TestTok(unittest.TestCase):
 
     def test_token_str(self):
         self.assertEqual(str(Token.mock(text = "some_text")), "some_text")
-        self.assertEqual(str(Token.mock(TokenKind.EOF, '')), "EOF")
 
     def test_get_keyword(self):
         self.assertEqual(TokenKind.get_keyword('if'), TokenKind.IF)
@@ -140,6 +136,9 @@ class TestTok(unittest.TestCase):
         self.assertTrue(t.match(TokenKind.IDENTIFIER))
         self.assertTrue(t.match(TokenKind.BINARY))
         self.assertTrue(t.match('binary+'))
+        self.assertFalse(t.match(TokenKind.IF))
+        self.assertFalse(t.match(TokenKind.UNARY))
+        self.assertFalse(t.match('binary'))
 
 if __name__ == '__main__':
     unittest.main()
