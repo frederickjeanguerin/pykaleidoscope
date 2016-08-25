@@ -4,45 +4,45 @@ from lexing.lexer import tokens_from, Token, TokenKind
 
 
 class IndentError(Exception): 
-    """ Could not call this class IndentationError. """
+    """ Could not call this class IndentationError 
+        to prevent conflict with Python own one. """
     def __init__(self, line, msg = "Line is not properly indented"):
         self.line = line
         self.msg = msg 
 
 
 class Block(namedtuple('_Indent', 'stmts')):
+    """ A block is made of one or many consecutive statements 
+        sitting at the same indent level. 
+    """
 
     __slots__ = ()
 
     def __init__(self, stmts): 
         pass
 
-    @property    
-    def indent(self):
-        return self.stmts[0].indent
-
     def flatten(self):
         return [stmt.flatten() for stmt in self.stmts]
 
-    def dump(self, indent_shift = 2, indent = 0):
-        return "".join((stmt.dump(indent_shift, indent) for stmt in self.stmts))
+    def dump(self, indentation = 2, indentlevel = 0):
+        return "".join((stmt.dump(indentation, indentlevel) for stmt in self.stmts))
 
 
 class Stmt(namedtuple('_Stmt', 'tokblocks')):
+
+    """ A Statement is made of one or many consecutive tokens 
+        with possibly interspersed Blocks. 
+        However, the first element is always a token. """
 
     __slots__ = ()
 
     def __init__(self, tokblocks): 
         pass
 
-    @property    
-    def indent(self):
-        return self.tokblocks[0].indent    
-
     def flatten(self):
         return [tb.text if isinstance(tb, Token) else tb.flatten() for tb in self.tokblocks]        
 
-    def dump(self, indent_shift = 2, indent = 0):    
+    def dump(self, indentation = 2, indentlevel = 0):    
         s = ""
         has_dumped_block = False
         last_is_a_line = True
@@ -50,14 +50,14 @@ class Stmt(namedtuple('_Stmt', 'tokblocks')):
         for tb in self.tokblocks:
             if isinstance(tb, Token):
                 if first_on_line:
-                    s += "  " * indent
+                    s += "  " * indentlevel
                 else:
                     s += " "
                 s += tb.text
                 first_on_line = False
                 last_is_a_line = True
             else:                
-                s += "\n" + tb.dump(indent_shift, indent + indent_shift)
+                s += "\n" + tb.dump(indentation, indentlevel + indentation)
                 first_on_line = True
                 has_dumped_block = True
                 last_is_a_line = False
@@ -73,12 +73,18 @@ class Stmt(namedtuple('_Stmt', 'tokblocks')):
 
 
 class IndenterFeeder :
+    """
+        Helper class for the indentation process.
+        Feeds the tokens, and takes care of recording the
+        current and previous token, as well as some other special properties.
+    """
 
     def __init__(self, token_gen):
         """ token_gen is a token provider (generator) """
         self._tokens = token_gen
         self.previous = None
         self.current = next(self._tokens)
+        self._indent_levels = [self.indentlevel]
 
     def fetch(self):    
         """ Fetch the next token from the token source. """    
@@ -86,9 +92,15 @@ class IndenterFeeder :
         if not self.previous.eof:    
             self.current = next(self._tokens)
 
+    def __enter__(self):
+        self._indent_levels.append(self.indentlevel)    
+
+    def __exit__(self, type, value, traceback):
+        self._indent_levels.pop()    
+
     @property
     def lineno(self):
-        """ Line no on which sits the current token.
+        """ Line number on which sits the current token.
             That line is always very far for EOF, because EOF 
             is always considered sitting on many lines 
             after the last real token.
@@ -99,8 +111,8 @@ class IndenterFeeder :
             return self.current.lineno 
 
     @property
-    def indent(self):
-        """ Indentation of the line on which sits the current token.
+    def indentlevel(self):
+        """ Absolute indentation of the line on which sits the current token.
             Indentation of EOF is always -1.
             Because EOF never match any indentation level.
         """
@@ -108,6 +120,12 @@ class IndenterFeeder :
             return -1
         else:
             return self.current.line.indentsize                       
+
+    @property
+    def indentation(self):
+        """ Returns the relative indentation shift between the current token
+            and the indent level of the current block (with statement) """
+        return self.indentlevel - self._indent_levels[-1]
 
     @property
     def line_gap(self):
@@ -122,10 +140,10 @@ class IndenterFeeder :
 def _parseBlock(feeder):
     assert not feeder.current.eof
     stmts = list()
-    indent = feeder.indent 
-    while feeder.indent == indent:
-        stmts.append(_parseStmt(feeder))
-    return Block(stmts)    
+    with feeder: 
+        while feeder.indentation == 0:
+            stmts.append(_parseStmt(feeder))
+    return Block(stmts) 
 
 def _parseLine(feeder, tokblocks):
     # A line has at least one token
@@ -139,41 +157,42 @@ def _parseLine(feeder, tokblocks):
 
 
 def _parseStmt(feeder):
+    f = feeder
     tokblocks = []
-    indent = feeder.indent
-    _parseLine(feeder, tokblocks)
-    indent_shift = feeder.indent - indent
-    # While there is indentation 
-    while indent_shift > 0:  
-        if indent_shift == 1 :
-            raise IndentError(feeder.current.line, "Indentation must be greater than 1 space")
-        elif indent_shift > 4 :
-            raise IndentError(feeder.current.line, "Indentation must be no more than 4 spaces")
-        # Parse the block    
-        tokblocks.append(_parseBlock(feeder))
-
-        # Check indentation after the block        
-        indent_shift = feeder.indent - indent
-        # If indentation not recovered, that is bad
-        if indent_shift > 0 :
-            raise IndentError(feeder.current.line)
-        # If indentation is negative or same as before, 
-        # but preceded by an empty line, the statement is terminated  
-        if indent_shift < 0 or (indent_shift == 0 and feeder.line_gap >= 2):
-            break
-        # Otherwise, continue the statement with the new line.
+    with feeder:
         _parseLine(feeder, tokblocks)
+        while f.indentation > 0:  
+            if f.indentation == 1 :
+                raise IndentError(feeder.current.line, "Indentation must be more than 1 space")
+            # An indentation of 8 or more denotes line continuation.     
+            elif f.indentation >= 8 :
+                _parseLine(feeder, tokblocks)
+                continue
+            elif f.indentation in [5, 6, 7] :
+                raise IndentError(feeder.current.line, "Indentation must be no more than 4 spaces and line continuation must be at least 8 spaces")
 
-        # Check indentation after the line
-        indent_shift = feeder.indent - indent
-        # If there is an unindent or if there is a blank line, end statement
-        if indent_shift < 0 or (indent_shift == 0 and feeder.line_gap >= 2):
-            break
-        # If there is another line, then error
-        if indent_shift == 0:
-            raise IndentError(feeder.previous.line, "This line should be followed or preceded by a blanck line.")
-        # Otherwise, there is a new indentation, so just loop
-        assert indent_shift > 0    
+            # Otherwise, there is a block ahead, so parse it:    
+            assert f.indentation in [2, 3, 4]    
+            tokblocks.append(_parseBlock(feeder))
+
+            # If indentation not recovered, that is bad
+            if f.indentation > 0 :
+                raise IndentError(feeder.current.line)
+            # If indentation is negative or same as before, 
+            # but preceded by an empty line, the statement is terminated  
+            if f.indentation < 0 or (f.indentation == 0 and f.line_gap >= 2):
+                break
+            # Otherwise, continue the statement with the new line.
+            _parseLine(feeder, tokblocks)
+
+            # If there is an unindent or if there is a blank line, end statement
+            if f.indentation < 0 or (f.indentation == 0 and f.line_gap >= 2):
+                break
+            # If there is another line, then error
+            if f.indentation == 0:
+                raise IndentError(feeder.previous.line, "This line should be followed or preceded by a blanck line.")
+            # Otherwise, there is a new indentation, so just loop
+            assert f.indentation > 0    
         
     return Stmt(tokblocks)        
         
@@ -186,9 +205,9 @@ def stmts_from(token_gen):
     if feeder.current.eof:
         return
     # TODO warn if initial indent_level > 0
-    indent = feeder.indent
-    while feeder.indent == indent:
-        yield _parseStmt(feeder)
+    with feeder:
+        while feeder.indentation == 0:
+            yield _parseStmt(feeder)
     # If there are residual tokens,
     # It's because they are badly indented.    
     if not feeder.current.eof:
@@ -360,7 +379,7 @@ while hungry
         with self.assertRaises(IndentError) as err:
             _parse("""
                 if true
-                            ERROR this line indented too much
+                      ERROR this line indented too much
                 """)
         self.assertEqual(err.exception.line.no, 3)         
                  
@@ -390,6 +409,63 @@ while hungry
                 this line ok
                 """) 
         self.assertEqual(err.exception.line.no, 4)         
+
+
+    def test_line_continuation(self):
+
+        self.__assert("""
+            if true
+                    be foolish
+            """, 
+            [
+                ['if', 'true', 'be', 'foolish']   
+            ])
+
+        self.__assert("""
+            if true
+                    
+                    be 
+                    
+                    foolish
+            """, 
+            [
+                ['if', 'true', 'be', 'foolish']   
+            ])
+
+        self.__assert("""
+            if true
+                    be foolish
+                    and
+                    cool
+                but beware
+
+            else
+              be sad  
+            """, 
+            [
+                ['if', 'true', 'be', 'foolish', 'and', 'cool',
+                    [['but', 'beware']]],
+                ['else',
+                    [['be', 'sad']]]   
+            ])
+
+        self.__assert("""
+            if true
+                    be foolish
+                    and
+                    cool
+                but beware
+            else
+              be sad  
+            """, 
+            [
+                ['if', 'true', 'be', 'foolish', 'and', 'cool',
+                    [['but', 'beware']],
+                'else',
+                    [['be', 'sad']]]   
+            ])
+
+
 
 
 #---- Run module tests ----#
