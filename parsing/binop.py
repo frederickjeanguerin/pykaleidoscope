@@ -11,7 +11,7 @@ BinOpInfo = namedtuple('BinOpInfo', ['precedence', 'associativity'])
 
 BUILTIN_OP = {
     ':': BinOpInfo(1, Associativity.LEFT),  
-    '=': BinOpInfo(2, Associativity.RIGHT), # ASsignment
+    '=': BinOpInfo(2, Associativity.RIGHT), # Assignment
     '&': BinOpInfo(5, Associativity.LEFT),  # Logical and
     '|': BinOpInfo(5, Associativity.LEFT),  # Logical or
     '<': BinOpInfo(10, Associativity.LEFT), 
@@ -31,8 +31,8 @@ def builtin_operators():
 
 _binop_map = dict(BUILTIN_OP)
 
-def info(op):
+def get(op):
     return _binop_map.get(op) 
 
-def set_info(op, precedence, associativity):
+def set(op, precedence, associativity):
     _binop_map[op] = BinOpInfo(precedence, associativity)

@@ -1,1 +1,1 @@
-__all__ = ["tok", "source", "lexer", "mixin", "span", "char_feeder"]
+# __all__ = ["tok", "source", "lexer", "mixin", "span", "char_feeder"]

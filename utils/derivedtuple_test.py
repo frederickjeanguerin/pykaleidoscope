@@ -1,17 +1,6 @@
-from collections import namedtuple
-
-def derivedtuple(typename, properties, *parents):
-    """Create a new namedtuple with ancestors in parents."""
-    nt = namedtuple(typename, properties)
-    # Add parents
-    nt.__bases__ = tuple(parents) + nt.__bases__
-    # Add method Flatten
-    # setattr(nt, 'flatten', _flatten)
-    return nt
-
-#---- Some unit tests ----#
 
 import unittest
+from derivedtuple import *
 
 class _PointMixin:
 
@@ -48,7 +37,4 @@ class TestDerivedTuple(unittest.TestCase):
         self.assertEqual( p.sum, 3 )
         self.assertTrue( isinstance(p, _PointMixin) )
         
-
-if __name__ == '__main__':
-    unittest.main()            
 
