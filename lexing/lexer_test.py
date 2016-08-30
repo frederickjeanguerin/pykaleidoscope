@@ -8,7 +8,7 @@ def _lex_kind(codestr):
     return _lex(codestr, lambda x : x.__class__)
 
 def _lex_text(codestr):
-    return _lex(codestr, lambda x : str(x))
+    return _lex(codestr, lambda x : x.text)
 
 class TestLexer(unittest.TestCase):
 
@@ -20,7 +20,7 @@ class TestLexer(unittest.TestCase):
         self.assertListEqual(_lex_kind(codestr), kinds + [EOF])
 
     def _assert_texts(self, codestr, texts):
-        self.assertListEqual(_lex_text(codestr), texts + ['<EOF>'])
+        self.assertListEqual(_lex_text(codestr), texts + [''])
 
     def _assert_lex(self, codestr, expected_tokens):
         tokens = _lex(codestr)

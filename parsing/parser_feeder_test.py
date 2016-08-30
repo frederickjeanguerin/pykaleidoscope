@@ -7,7 +7,7 @@ def test_feeder():
     assert f.match("if")
     assert f.match(Identifier)
     assert f.is_unglued
-    assert str(f.eat("if")) == "if"
+    assert f.eat("if").text == "if"
 
     assert f.match('a')
     assert f.is_unglued

@@ -1,0 +1,21 @@
+GRAMMAR 1 :
+
+program ::= stmt*
+stmt ::= seq
+seq ::= item*
+item ::= atom 
+atom ::= paren | wordlike
+paren ::= '(' seq ')'
+
+
+GRAMMAR 2:
+
+program ::= stmt*
+stmt ::= seq
+seq ::= (binary | block)* 
+binary ::= unarian (binop binary) | (binary binop) unarian | unarian 
+unarian ::= unary | atom
+unary :: op'atom
+atom ::= call | paren | wordlike
+call ::= wordlike'paren
+paren ::= '(' seq ')'

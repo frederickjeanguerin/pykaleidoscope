@@ -14,25 +14,21 @@ class ParseError(CodeError):
 class ParserFeeder :
 
     def __init__(self, stmt):
-        self._previous = None
-        self._current = None
-        self._next = None
+        self.previous = None
+        self.current = None
+        self.next = None
         self._tokblocks = (tocblock for tocblock in stmt.tokblocks)
         self._fetch()
         self._fetch()
 
     def _fetch(self):    
         """Fetch the next token from the token source."""
-        self._previous = self._current
-        self._current = self._next    
+        self.previous = self.current
+        self.current = self.next    
         try :    
-            self._next = next(self._tokblocks)
+            self.next = next(self._tokblocks)
         except StopIteration:
-            self._next = None    
-
-    @property
-    def current(self):
-        return self._current    
+            self.next = None    
 
     def eat(self, attribute = None):
         """Consume and return the current token; 
@@ -40,19 +36,19 @@ class ParserFeeder :
         """
         if attribute:
             self.expect(attribute)
-        current = self._current
+        current = self.current
         self._fetch()
         return current
 
     @property    
     def is_left_glued(self):
         """True if the current token is a glued to the previous one"""
-        return self._previous and self._current and self._previous.endpos == self._current.pos
+        return self.previous and self.current and self.previous.endpos == self.current.pos
 
     @property    
     def is_right_glued(self):
         """True if the current token is a glued to the next one"""
-        return self._next and self._current and self._current.endpos == self._next.pos
+        return self.next and self.current and self.current.endpos == self.next.pos
 
     @property    
     def is_glued(self):
@@ -68,13 +64,13 @@ class ParserFeeder :
 
     def match(self, attribute):
         """Returns True the the current token matches agains the attribute."""
-        return self._current is attribute \
+        return self.current is attribute \
             or self.current and self.current.match(attribute)
 
     def expect(self, token_attribute):
         """Verify the current token against the given attribute"""
         if not self.match(token_attribute):
-            self.throw('Expected ' + str(token_attribute) + ' after ' + self._previous.error_str, self._previous)
+            self.throw('Expected ' + str(token_attribute) + ' after ' + self.previous.error_str, self.previous)
 
     def match_then_eat(self, token_attribute):
         """Return true if the current token matches with the given attribute, eating that token by the way"""

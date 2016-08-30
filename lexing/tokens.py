@@ -37,18 +37,8 @@ class Token(namedtuple('_Token', 'text pos line')):
     def source(self):
         return self.line.source    
 
-    @property
-    def first_token(self):
-        """ When tokens are considered expressions in the AST"""
-        return self        
-
-    @property
-    def last_token(self):
-        """ When tokens are considered expressions in the AST"""
-        return self    
-
     def __str__(self):
-        return self.text    
+        return self.error_str    
 
     def _match_attr(self, attribute):
         """Return true if the token matches the given attribute"""
@@ -66,6 +56,19 @@ class Token(namedtuple('_Token', 'text pos line')):
     @classmethod
     def mock(cls, text = 'mocked_token_text'):
         return cls.__new__(cls, text, 0, Line.mock(text)) 
+
+    # ---- When tokens are considered expressions in the AST ----
+
+    @property
+    def first_token(self):
+        return self        
+
+    @property
+    def last_token(self):
+        return self    
+
+    def to_code(self):
+        return self.text    
 
 
 

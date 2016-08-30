@@ -8,7 +8,7 @@ colorama.init()
 # local imports
 from code_error import *
 from lexing import lexer
-from parsing import indenter, parser, nodes
+from parsing import indenter, parser, seq
 
 
 LEX = {"lex", "lexer"}
@@ -42,11 +42,10 @@ def eval(codestr, modules):
         return
 
     # parsing
-    asts = [ parser.ast_from(stmt) for stmt in stmts ]
+    seqs = [ parser.seq_from(stmt) for stmt in stmts ]
     if modules & PARSE:
-        for ast in asts:
-            cprint(nodes.flatten(ast), 'green') 
-            cprint(ast.dump(2, 3), 'blue') 
+        for seq in seqs:
+            cprint(seq.to_code(), 'blue') 
     modules -= PARSE
     if not modules:
         return

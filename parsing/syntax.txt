@@ -1,0 +1,28 @@
+
+f(x)    --> appel de fonction
+
+f 1 2 3 --> appel de fonction
+
+(f x)   --> tuple ou appel de fonction ??
+
+(x)     --> tuple ou element lui-meme ??
+
+x + y   --> operation
+(x + y) --> operation avec priorite claire
+
+(x, y z) --> 
+
+(f)x    --> ( (f) x )
+
+(f)x(y) --> ( ( (f) x ) (y) )
+
+if cond (if cond then else) (if cond then else)
+if cond if(cond then else) if(cond then else)
+if cond { if cond then else } { if cond then else }
+if cond 
+    if cond then else
+***
+    if cond then else
+
+if cond *
+
