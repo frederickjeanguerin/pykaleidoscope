@@ -14,8 +14,7 @@ def tokens_from(source):
     The generator will emit an EOF token before stopping.
     """
 
-    f = CharFeeder(source)
-        
+    f = CharFeeder(source)      
     while not f.is_empty():
         # Skip whitespace
         while f.current.isspace():
@@ -24,13 +23,22 @@ def tokens_from(source):
             break;    
         # Else a new token starts here    
         f.start_token()
+        # LLVM Identifier 
+        if f.current == "%":
+            iden_type = LlvmIdentifier
+            f.next()
+        else:
+            iden_type = Identifier    
         # Identifier 
         if f.current.isalpha():
             while f.current.isalnum() or f.current == '_':
                 f.next()
-            yield f.new_token(Identifier)
+            yield f.new_token(iden_type)
+            continue;
+        else:
+            f.rebase()    
         # Number
-        elif f.current.isdigit() or f.current == '.':
+        if f.current.isdigit() or f.current == '.':
             while f.current.isdigit() or f.current == '.':
                 f.next()
             yield f.new_token(Number)

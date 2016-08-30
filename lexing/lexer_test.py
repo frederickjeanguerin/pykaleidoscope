@@ -43,6 +43,9 @@ class TestLexer(unittest.TestCase):
     def test_lexer_iden(self):
         self._assert_lex('an_identifier', [(Identifier, 'an_identifier')])
 
+    def test_llvm_identifier(self):
+        self._assert_lex('%llvm', [(LlvmIdentifier, '%llvm')])
+
     def test_operator_char(self):
         for char in "*$-/":
             self.assertTrue(is_operator_char(char))

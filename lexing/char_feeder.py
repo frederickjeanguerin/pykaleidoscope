@@ -86,3 +86,9 @@ class CharFeeder(LineCharFeeder):
         """Return a new token starting from tokenpos"""
         return Token.__new__(cls, self.source[self.tokenpos:self.pos], self.tokenpos, self.line)
 
+    def rebase(self):
+        "Rebase the feeder to the position where a start_token was done"    
+        assert self.tokenpos is not None
+        assert "\n" not in self.source[self.tokenpos:self.pos]
+        self.pos = self.tokenpos
+        self.current = self.source[self.pos]

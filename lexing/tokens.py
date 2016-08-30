@@ -107,9 +107,14 @@ class Number(Wordlike):
 class Identifier(Wordlike):
     pass
 
-class OperatorIdenfier(Identifier):
+class OperatorIdentifier(Identifier):
     ''' Every operator has an underlying associated identifier, 
         E.g. binary + has identifier ___+___ 
+    '''
+    pass
+
+class LlvmIdentifier(Identifier):
+    ''' An identifier referring to an LLVM operation. 
     '''
     pass
 

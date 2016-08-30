@@ -88,3 +88,17 @@ class TestCharFeeder(unittest.TestCase):
         self.assertEqual(token.text, "allo")
         self.assertEqual(token.lineno, 1)
         
+    def test_rebase(self):
+        f = CharFeeder(" \n  %alpha ")
+        self._eat( f, "\n" )
+        f.start_token()
+        self._eat( f, "%alp" )
+        self.assertEqual(f.current, "h")
+        f.rebase()
+        self.assertEqual(f.current, "%")
+        self._eat( f, "%alpha" )
+        token = f.new_token(Identifier)
+        self.assertEqual(token.text, "%alpha")
+        self.assertEqual(token.lineno, 2)
+        self.assertEqual(token.colno, 3)
+
