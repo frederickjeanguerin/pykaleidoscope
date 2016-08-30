@@ -9,15 +9,16 @@ colorama.init()
 from code_error import *
 from lexing import lexer
 from parsing import indenter, parser, seq
+import ircodegen
 
-
-LEX = {"lex", "lexer"}
-INDENT = {"indent", "indenter"}
-PARSE = {"parse", "parser"}
+LEX     = {"lex", "lexer"}
+INDENT  = {"indent", "indenter"}
+PARSE   = {"parse", "parser"}
+IR      = {"ir", "codegen"}
 DEBUG = {"debug"}
 
 OPTIONS = DEBUG
-MODULES = LEX | INDENT | PARSE
+MODULES = LEX | INDENT | PARSE | IR
 ALL = OPTIONS | MODULES 
 
 def eval(codestr, modules):
@@ -50,8 +51,16 @@ def eval(codestr, modules):
     if not modules:
         return
 
-    print("Unimplemented operations:", modules)    
+    # ir codegen
+    codegens = [ ircodegen.irgen(seq) for seq in seqs ]
+    if modules & IR:
+        for codegen in codegens:
+            cprint(codegen, 'magenta') 
+    modules -= IR
+    if not modules:
+        return
 
+    print("Unimplemented operations:", modules)    
 
 
 def repl(modules):
@@ -81,7 +90,7 @@ def run():
             repl(modules)    
 
     else:
-        repl(PARSE)    
+        repl(IR)    
 
 
 if __name__ == '__main__':

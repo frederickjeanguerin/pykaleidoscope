@@ -12,5 +12,7 @@ class Seq(SourceMixin):
     def to_code(self):
         return "(" + " ".join((item.to_code() for item in self.items)) + ")"    
 
-
+    @property    
+    def len(self):
+        return len(self.items)    
 

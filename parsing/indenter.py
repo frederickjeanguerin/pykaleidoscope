@@ -29,6 +29,21 @@ class SourceMixin:
     def source(self):
         return self.first_token.source    
 
+    @property
+    def text(self):
+        return self.source[self.pos:self.endpos]
+
+    @property
+    def lineno(self):
+        return self.first_token.lineno    
+
+    @property
+    def colno(self):
+        return self.first_token.colno    
+
+    def __str__(self):
+        return "[{}] at {}:{}".format(self.text, self.lineno, self.colno)        
+
 
 class Block(SourceMixin, namedtuple('_Indent', 'stmts')):
     """ A block is made of one or many consecutive statements 
