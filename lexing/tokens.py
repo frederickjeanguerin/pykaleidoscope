@@ -58,6 +58,10 @@ class Token(namedtuple('_Token', 'text pos line')):
         """Return true if the token matches with all the given attributes"""
         return all( (self._match_attr(attr) for attr in attributes )  )  
 
+    @property    
+    def error_str(self):
+        """Returns the error_str of the token."""
+        return "{} at {}:{}".format(self.text, self.lineno, self.colno)
 
     @classmethod
     def mock(cls, text = 'mocked_token_text'):

@@ -32,7 +32,8 @@ class Call(Node):
     def flatten(self):
         return [self.__class__.__name__, 
             flatten(self.callee), 
-            flatten(self.args)]
+            *flatten(self.args)]
+
 
 
 def flatten(node):
@@ -41,6 +42,8 @@ def flatten(node):
         return node.flatten()
 
     elif isinstance(node, list):
+        if len(node) == 0:
+            return tuple()
         return [flatten(elem) for elem in node]
 
     elif isinstance(node, Token):
@@ -56,14 +59,16 @@ def dump(flattened, indentlevel=0, indent = 2):
     if not isinstance(flattened, list):
         return " "*indentlevel + str(flattened) + "\n"
 
-    # else if a list with no sublist, return the list on just a single line    
+    if len(flattened) == 1:
+        return dump(flattened[0])
+
+    # else if a list with no sublist, return the list on just a single line
     if all((not isinstance(elem, list) for elem in flattened)):
         return " "*indentlevel + " ".join((str(elem) for elem in flattened)) + "\n"
 
     # otherwise, spread on many lines 
     s = ""   
-    assert not isinstance(flattened[0], list)
-    s += dump(flattened[0], indentlevel, indent)
+    s += dump(str(flattened[0]), indentlevel, indent)
     for elem in flattened[1:]:
         s += dump(elem, indentlevel + indent, indent)
     return s        

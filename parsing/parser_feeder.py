@@ -7,6 +7,10 @@ class ParseError(CodeError):
         self.token = token 
         self.msg = msg 
 
+    def __str__(self):
+        return self.msg
+            
+
 class ParserFeeder :
 
     def __init__(self, stmt):
@@ -70,7 +74,7 @@ class ParserFeeder :
     def expect(self, token_attribute):
         """Verify the current token against the given attribute"""
         if not self.match(token_attribute):
-            throw('Expected ' + str(token_attribute))
+            self.throw('Expected ' + str(token_attribute) + ' after ' + self._previous.error_str, self._previous)
 
     def match_then_eat(self, token_attribute):
         """Return true if the current token matches with the given attribute, eating that token by the way"""
@@ -79,7 +83,9 @@ class ParserFeeder :
             return True
         return False            
 
-    def throw(self, message = "Unexpected!", tokblock = None):
+    def throw(self, message = None, tokblock = None):
         """Raise a parse error, passing it a message and the current tokblock"""
-        raise ParseError(message, tokblock.first_token or self.current.first_token)
+        token = (tokblock and tokblock.first_token) or self.current.first_token
+        message = message or "Unexpected " + token.error_str
+        raise ParseError( token , message)
 

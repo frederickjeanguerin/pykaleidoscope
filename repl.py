@@ -45,8 +45,8 @@ def eval(codestr, modules):
     asts = [ parser.ast_from(stmt) for stmt in stmts ]
     if modules & PARSE:
         for ast in asts:
-            cprint(nodes.flatten(ast), 'yellow') 
-            # cprint(ast.dump(2, 3), 'blue') 
+            cprint(nodes.flatten(ast), 'green') 
+            cprint(ast.dump(2, 3), 'blue') 
     modules -= PARSE
     if not modules:
         return

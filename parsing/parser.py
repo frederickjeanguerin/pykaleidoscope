@@ -6,7 +6,7 @@ from .nodes import *
 
 # GRAMMAR :
 #
-# toplevel ::= stmt
+# program ::= stmt*
 # stmt ::= seq
 # seq ::= (binary | block)* 
 # binary ::= unarian (binop binary) | (binary binop) unarian | unarian 

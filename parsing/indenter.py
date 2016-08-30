@@ -15,7 +15,7 @@ class SourceMixin:
     def match(self, attribute):
         if isinstance(attribute, type):
             return isinstance(self, attribute)
-        return false   
+        return False   
 
     @property     
     def pos(self):
