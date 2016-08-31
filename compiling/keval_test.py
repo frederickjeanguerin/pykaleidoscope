@@ -51,7 +51,12 @@ def test_integer_arithmetics():
     assert eval("%ashr 64 2") == 16
     assert eval("%lshr 64 2") == 16
     
-
+def test_conversion():
+    # automatic conversion from int to float
+    assert eval("%fadd 1 2") == 3
+    # not automatic from float to int
+    _error("%add 1.0 2.0", 6)
+    assert eval("%add (%fptosi 1.0) 2") == 3    
 
 def test_error():
 
