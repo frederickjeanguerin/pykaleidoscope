@@ -30,14 +30,14 @@ def tokens_from(source):
 
         # Else a new token starts here    
         f.start_token()
-        yield find_token(f)
+        yield _get_next_token(f)
 
     # Yield a terminal EOF marker        
     f.start_token()
     yield f.new_token(EOF)
 
 
-def find_token(f):
+def _get_next_token(f):
 
     # LLVM Identifier 
     if f.current == "%":
