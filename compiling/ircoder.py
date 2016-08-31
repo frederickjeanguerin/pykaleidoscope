@@ -1,10 +1,11 @@
 from collections import namedtuple
 import re
-import llvmlite.ir as ir
 
 from parsing.seq import *
+from .constants import *
 
 KResult = namedtuple("_KResult", "value type seq")
+IrResult = namedtuple("_IrResult", "module type")
 
 class CodegenError(CodeError):
 
@@ -25,14 +26,15 @@ def _raise(seq_or_token, msg = None):
 
 def ir_from(seq):
     """ Generate an IR of the code in seq.
-        Returns a module with a "main" function having that code.
+        Returns a (module, return_type) with 
+        a "main" function having that code.
     """
     # Create a module to insert the IR code in
     module = ir.Module()
 
     # Create a main(): double function
     funcname = "main"
-    functype = ir.FunctionType(_F64, [])
+    functype = ir.FunctionType(F64, [])
     func = ir.Function(module, functype, funcname)
 
     # Create the entry BB in the function and set a new builder to it.
@@ -42,11 +44,11 @@ def ir_from(seq):
     # Generate IR code and value corresponding to the sequence
     rawresult = _gen_seq(seq, builder)
     # Cast result to float
-    mainresult = _cast(rawresult, _F64, builder)
+    mainresult = _cast(rawresult, F64, builder)
     # And make the main function return that value
     builder.ret(mainresult.value)
 
-    return module
+    return IrResult(module, rawresult.type)
 
 
 def _gen_seq(seq, builder):
@@ -83,7 +85,7 @@ def _gen_seq(seq, builder):
         _raise(callee, "Llvm identifier expected for callee")
 
     # Get requested llvm operation     
-    llvm_op_info = _LLVM_OPS.get(callee.llvm_op)
+    llvm_op_info = LLVM_OPS.get(callee.llvm_op)
     if not llvm_op_info:
         _raise(callee, "Unsupported or undefined LLVM operation")
     llvm_fun, ret_type, *arg_types = llvm_op_info
@@ -99,7 +101,7 @@ def _gen_seq(seq, builder):
     args = [_cast(rawarg, arg_types[i], builder).value for i, rawarg in enumerate(rawargs)]    
 
     # Compute the function call and return that value
-    return KResult(llvm_fun(builder, *args, 'addop'), ret_type, callee)
+    return KResult(llvm_fun(builder, *args, callee.llvm_op), ret_type, callee)
 
 def _gen_number(number, builder):
     """Converts a float string value into an IR double constant value"""
@@ -109,12 +111,12 @@ def _gen_number(number, builder):
         if re.match(r"^[0-9]*$", number.text):
             value = int(number.text)
             if -2**32 <= value <= 2**32:
-                return KResult(_I32(value), _I32, number)
+                return KResult(I32(value), I32, number)
             else:
                 _raise(number, "Integer too big to fit in 32 bits")
 
         # Floating point    
-        return KResult(_F64(float(number.text)), _F64, number)
+        return KResult(F64(float(number.text)), F64, number)
 
     except ValueError:
         _raise(number, "Invalid number format")    
@@ -126,22 +128,10 @@ def _cast(result, expected_type, builder):
         return result
 
     # If promotion possible, make it    
-    if result.type == _I32 and expected_type == _F64:
-        return KResult(builder.sitofp(result.value, _F64), _F64, result.seq)
+    if result.type == I32 and expected_type == F64:
+        return KResult(builder.sitofp(result.value, F64), F64, result.seq)
     
     # Otherwise : ERROR        
     _raise(result.seq, "Type mismatch error, expecting {} but got {} for".format(expected_type, result.type))
 
 
-_F64 = ir.DoubleType()
-
-_I32 = ir.IntType(32)
-
-_LLVM_OPS = {
-
-    "fadd" : ( ir.IRBuilder.fadd, _F64, _F64, _F64 ),
-    "fmul" : ( ir.IRBuilder.fmul, _F64, _F64, _F64 ),
-    "fsub" : ( ir.IRBuilder.fsub, _F64, _F64, _F64 ),
-    "fdiv" : ( ir.IRBuilder.fdiv, _F64, _F64, _F64 ),
-    "frem" : ( ir.IRBuilder.frem, _F64, _F64, _F64 ),
-}

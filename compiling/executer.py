@@ -25,7 +25,6 @@ def _create_execution_engine():
 
 _engine = _create_execution_engine()
 
-
 def exec(mod):
 
     global _engine

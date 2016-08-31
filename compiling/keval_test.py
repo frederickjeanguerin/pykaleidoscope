@@ -29,6 +29,30 @@ def test_floating_arithmetics():
     assert eval("%frem 6 2.5") == 1.0
 
 
+def test_integer_arithmetics():
+
+    assert eval("%add 2 1") == 3
+    assert eval("%mul 3 2") == 6
+    assert eval("%sub 4 3") == 1
+    assert eval("%sdiv 15 6") == 2
+    assert eval("%udiv 15 6") == 2
+    assert eval("%srem 15 6") == 3
+    assert eval("%urem 15 6") == 3
+    assert eval("%neg 15") == -15
+
+    # bitwise
+    assert eval("%and 14 3") == 2
+    assert eval("%or 14 3") == 15
+    assert eval("%xor 14 3") == 13
+    assert eval("%not 1") == -2
+
+    # shift
+    assert eval("%shl 8 2") == 32
+    assert eval("%ashr 64 2") == 16
+    assert eval("%lshr 64 2") == 16
+    
+
+
 def test_error():
 
     _error("a", 1)

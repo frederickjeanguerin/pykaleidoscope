@@ -9,7 +9,7 @@ colorama.init()
 from code_error import *
 from lexing import lexer
 from parsing import indenter, parser, seq
-from compiling import ircoder, optimizer, executer
+from compiling import ircoder, optimizer, keval
 
 LEX     = {"lex", "lexer"}
 INDENT  = {"indent", "indenter"}
@@ -57,22 +57,22 @@ def eval(codestr, modules):
     codegens = [ ircoder.ir_from(seq) for seq in seqs ]
     if modules & IR:
         for codegen in codegens:
-            cprint(codegen, 'magenta') 
+            cprint(codegen.module, 'magenta') 
     modules -= IR
     if not modules:
         return
 
     # ir optimization
-    optimods = [ optimizer.optimize(codegen) for codegen in codegens ]
+    optimods = [ ircoder.IrResult(optimizer.optimize(codegen.module), codegen.type) for codegen in codegens ]
     if modules & OPTIM:
         for optimod in optimods:
-            cprint(optimod, 'cyan') 
+            cprint(optimod.module, 'cyan') 
     modules -= OPTIM
     if not modules:
         return
 
     # code execution
-    results = [ executer.exec(optimod) for optimod in optimods ]
+    results = [ keval.eval_mod(optimod.module, optimod.type) for optimod in optimods ]
     if modules & EXEC:
         for result in results:
             cprint(result, 'green') 
