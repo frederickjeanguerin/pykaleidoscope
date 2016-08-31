@@ -84,8 +84,10 @@ def _gen_seq(seq, builder):
     if not callee.match(LlvmIdentifier):
         _raise(callee, "Llvm identifier expected for callee")
 
-    # At this moment, only addition is permitted    
-    if not callee.match("%fadd"):
+    # Get requested llvm operation     
+    llvm_op = _LLVM_OPS.get(callee.llvm_op)
+
+    if not llvm_op:
         _raise(callee, "Unsupported or undefined LLVM operation")
 
     # Verify there are 2 arguments    
@@ -97,4 +99,14 @@ def _gen_seq(seq, builder):
     arg2 = _gen_seq(seq.items[2], builder)    
 
     # Compute the function call and return that value
-    return builder.fadd(arg1, arg2, 'addop')
+    return llvm_op(builder, arg1, arg2, 'addop')
+
+
+_LLVM_OPS = {
+
+    "fadd" : ir.IRBuilder.fadd,
+    "fmul" : ir.IRBuilder.fmul,
+    "fsub" : ir.IRBuilder.fsub,
+    "fdiv" : ir.IRBuilder.fdiv,
+    "frem" : ir.IRBuilder.frem,
+}
