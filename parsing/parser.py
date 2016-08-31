@@ -7,6 +7,16 @@ from .seq import *
 class CantEatAnymoreSignal(Exception):
     pass
 
+def parse(codestr):
+    """ Return the unique seq present in codestr """
+    seqs = list(seqs_gen(codestr))
+    assert len(seqs) == 1
+    return seqs[0]
+
+def seqs_gen(codestr):
+    """ Generator to retreive all seqs from codestr. """
+    return (seq_from(stmt) for stmt in stmts_gen(codestr))
+
 def seq_from(stmt):
     """Given a stmt, returns an Abstract Syntax Tree representing it."""
     f = ParserFeeder(stmt)

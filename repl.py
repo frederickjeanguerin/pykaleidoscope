@@ -9,7 +9,7 @@ colorama.init()
 from code_error import *
 from lexing import lexer
 from parsing import indenter, parser, seq
-import irgenerator, optimizer, executer
+from compiling import ircoder, optimizer, executer
 
 LEX     = {"lex", "lexer"}
 INDENT  = {"indent", "indenter"}
@@ -54,7 +54,7 @@ def eval(codestr, modules):
         return
 
     # ir codegen
-    codegens = [ irgenerator.irgen(seq) for seq in seqs ]
+    codegens = [ ircoder.ir_from(seq) for seq in seqs ]
     if modules & IR:
         for codegen in codegens:
             cprint(codegen, 'magenta') 

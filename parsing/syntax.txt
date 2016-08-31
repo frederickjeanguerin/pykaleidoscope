@@ -1,28 +1,29 @@
 
-f(x)    --> appel de fonction
+( %fadd 3 4 )
 
-f 1 2 3 --> appel de fonction
+3 -fadd- 4
 
-(f x)   --> tuple ou appel de fonction ??
+4 _mod_ 3
 
-(x)     --> tuple ou element lui-meme ??
+9 -mod- 8
 
-x + y   --> operation
-(x + y) --> operation avec priorite claire
+print_ 34
 
-(x, y z) --> 
+43 _factorial
 
-(f)x    --> ( (f) x )
+4 -plus- 3   8 -mod- 9
 
-(f)x(y) --> ( ( (f) x ) (y) )
+8 -fadd- 9
 
-if cond (if cond then else) (if cond then else)
-if cond if(cond then else) if(cond then else)
-if cond { if cond then else } { if cond then else }
-if cond 
-    if cond then else
-***
-    if cond then else
+8 -mod- 9
 
-if cond *
+8 (minus) 9
+
+let a be 8 (minus) 9
+
+let a be 8 -minus- 9
+
+3 -%fadd- 4
+
+3 (%fadd) 4
 

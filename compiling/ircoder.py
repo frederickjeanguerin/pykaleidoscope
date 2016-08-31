@@ -27,8 +27,7 @@ def _irdouble(number):
     except ValueError:
         _raise(number, "Invalid float value")    
 
-
-def irgen(seq):
+def ir_from(seq):
     """ Generate an IR of the code in seq.
         Returns a module with a "main" function having that code.
     """

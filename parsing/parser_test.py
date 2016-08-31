@@ -2,19 +2,16 @@
 from .parser import *
 from pytest import raises
 
-def _parse(codestr):
-    return seq_from(next(stmts_from(tokens_from(codestr))))
-
 def _assert(codestr):
-    assert _parse(codestr).to_code() == "(" + codestr + ")"
+    assert parse(codestr).to_code() == "(" + codestr + ")"
 
 def _error(codestr, colno):
     with raises(ParseError) as err:
-        _parse(codestr)
+        parse(codestr)
     assert err.value.token.colno == colno        
 
 def test_seq_simple():
-    seq = _parse("0")
+    seq = parse("0")
     assert seq.match(Seq)
     assert seq.items[0].match("0")
     assert seq.to_code() == "(0)"

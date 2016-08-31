@@ -271,8 +271,12 @@ def stmts_from(token_gen):
     if feeder.current.match(VisibleToken):
         raise IndentError(feeder.current.line, feeder.refline)
 
+def stmts_gen(codestr):
+    """ Return a generator to retreive every statement from codestr """
+    return ( stmt for stmt in stmts_from(tokens_from(codestr)) )
+
 def indent(codestr):
     """ Returns the array of Stmt found in the code string as a giant Block """
-    return Block([ stmt for stmt in stmts_from(tokens_from(codestr))])
+    return Block(list(stmts_gen(codestr)))
 
 
