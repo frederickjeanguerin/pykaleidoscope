@@ -91,7 +91,7 @@ def repl(modules):
             try:
                 eval(codestr, set(modules))
             except CodeError as err:
-                print(err)
+                cprint(err, "red", attrs=['bold'])
         cprint("K> " , 'yellow', end="")
         codestr = input()
         while codestr[-1] == "\\":

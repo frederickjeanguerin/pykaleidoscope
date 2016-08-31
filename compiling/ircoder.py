@@ -1,6 +1,10 @@
+from collections import namedtuple
+import re
 import llvmlite.ir as ir
 
 from parsing.seq import *
+
+KResult = namedtuple("_KResult", "value type seq")
 
 class CodegenError(CodeError):
 
@@ -19,14 +23,6 @@ def _raise(seq_or_token, msg = None):
     raise CodegenError(msg, seq_or_token)
 
 
-def _irdouble(number):
-    """Converts a float string value into an IR double constant value"""
-    assert isinstance(number, Number)
-    try:
-        return ir.Constant(ir.DoubleType(), float(number.text))
-    except ValueError:
-        _raise(number, "Invalid float value")    
-
 def ir_from(seq):
     """ Generate an IR of the code in seq.
         Returns a module with a "main" function having that code.
@@ -36,7 +32,7 @@ def ir_from(seq):
 
     # Create a main(): double function
     funcname = "main"
-    functype = ir.FunctionType(ir.DoubleType(), [])
+    functype = ir.FunctionType(_F64, [])
     func = ir.Function(module, functype, funcname)
 
     # Create the entry BB in the function and set a new builder to it.
@@ -44,9 +40,11 @@ def ir_from(seq):
     builder = ir.IRBuilder(bb_entry)    
 
     # Generate IR code and value corresponding to the sequence
-    retval = _gen_seq(seq, builder)
+    rawresult = _gen_seq(seq, builder)
+    # Cast result to float
+    mainresult = _cast(rawresult, _F64, builder)
     # And make the main function return that value
-    builder.ret(retval)
+    builder.ret(mainresult.value)
 
     return module
 
@@ -62,7 +60,7 @@ def _gen_seq(seq, builder):
     if seq.match(Token):
         if not seq.match(Number):
             _raise(seq, "Number expected in place of")
-        return _irdouble(seq)
+        return _gen_number(seq, builder)
 
     # Otherwise we are generating for a sequence    
     assert seq.match(Seq)
@@ -85,28 +83,65 @@ def _gen_seq(seq, builder):
         _raise(callee, "Llvm identifier expected for callee")
 
     # Get requested llvm operation     
-    llvm_op = _LLVM_OPS.get(callee.llvm_op)
-
-    if not llvm_op:
+    llvm_op_info = _LLVM_OPS.get(callee.llvm_op)
+    if not llvm_op_info:
         _raise(callee, "Unsupported or undefined LLVM operation")
+    llvm_fun, ret_type, *arg_types = llvm_op_info
 
-    # Verify there are 2 arguments    
-    if not seq.len == 3:
-        _raise(callee, "Two (2) arguments expected for callee")    
+    # Verify that the correct number of arguments are passed in    
+    if not seq.len == len(arg_types)+1:
+        _raise(callee, 
+            "({}) arguments expected but ({}) given for callee".format(len(arg_types), seq.len - 1))    
 
-    # Compute arguments    
-    arg1 = _gen_seq(seq.items[1], builder)    
-    arg2 = _gen_seq(seq.items[2], builder)    
+    # Compute arguments
+    rawargs = (_gen_seq(arg, builder) for arg in seq.items[1:])
+    # Cast arguments to expected types    
+    args = [_cast(rawarg, arg_types[i], builder).value for i, rawarg in enumerate(rawargs)]    
 
     # Compute the function call and return that value
-    return llvm_op(builder, arg1, arg2, 'addop')
+    return KResult(llvm_fun(builder, *args, 'addop'), ret_type, callee)
 
+def _gen_number(number, builder):
+    """Converts a float string value into an IR double constant value"""
+    assert isinstance(number, Number)
+    try:
+        # Integer
+        if re.match(r"^[0-9]*$", number.text):
+            value = int(number.text)
+            if -2**32 <= value <= 2**32:
+                return KResult(_I32(value), _I32, number)
+            else:
+                _raise(number, "Integer too big to fit in 32 bits")
+
+        # Floating point    
+        return KResult(_F64(float(number.text)), _F64, number)
+
+    except ValueError:
+        _raise(number, "Invalid number format")    
+
+
+def _cast(result, expected_type, builder):
+    # If same type, just return the result
+    if result.type == expected_type:
+        return result
+
+    # If promotion possible, make it    
+    if result.type == _I32 and expected_type == _F64:
+        return KResult(builder.sitofp(result.value, _F64), _F64, result.seq)
+    
+    # Otherwise : ERROR        
+    _raise(result.seq, "Type mismatch error, expecting {} but got {} for".format(expected_type, result.type))
+
+
+_F64 = ir.DoubleType()
+
+_I32 = ir.IntType(32)
 
 _LLVM_OPS = {
 
-    "fadd" : ir.IRBuilder.fadd,
-    "fmul" : ir.IRBuilder.fmul,
-    "fsub" : ir.IRBuilder.fsub,
-    "fdiv" : ir.IRBuilder.fdiv,
-    "frem" : ir.IRBuilder.frem,
+    "fadd" : ( ir.IRBuilder.fadd, _F64, _F64, _F64 ),
+    "fmul" : ( ir.IRBuilder.fmul, _F64, _F64, _F64 ),
+    "fsub" : ( ir.IRBuilder.fsub, _F64, _F64, _F64 ),
+    "fdiv" : ( ir.IRBuilder.fdiv, _F64, _F64, _F64 ),
+    "frem" : ( ir.IRBuilder.frem, _F64, _F64, _F64 ),
 }
