@@ -1,5 +1,5 @@
 import llvmlite.ir as ir
-import llvmlite.binding as llvm
+
 from parsing.seq import *
 
 class CodegenError(CodeError):
