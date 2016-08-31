@@ -9,17 +9,18 @@ colorama.init()
 from code_error import *
 from lexing import lexer
 from parsing import indenter, parser, seq
-import ircodegen, optimizer
+import irgenerator, optimizer, executer
 
 LEX     = {"lex", "lexer"}
 INDENT  = {"indent", "indenter"}
 PARSE   = {"parse", "parser"}
 IR      = {"ir", "codegen"}
 OPTIM   = {"optim", "optimize"}
+EXEC    = {"exec", "run"}
 DEBUG   = {"debug"}
 
 OPTIONS = DEBUG
-MODULES = LEX | INDENT | PARSE | IR
+MODULES = LEX | INDENT | PARSE | IR | OPTIM | EXEC
 ALL = OPTIONS | MODULES 
 
 def eval(codestr, modules):
@@ -53,7 +54,7 @@ def eval(codestr, modules):
         return
 
     # ir codegen
-    codegens = [ ircodegen.irgen(seq) for seq in seqs ]
+    codegens = [ irgenerator.irgen(seq) for seq in seqs ]
     if modules & IR:
         for codegen in codegens:
             cprint(codegen, 'magenta') 
@@ -62,11 +63,20 @@ def eval(codestr, modules):
         return
 
     # ir optimization
-    optimums = [ optimizer.optimize(codegen) for codegen in codegens ]
+    optimods = [ optimizer.optimize(codegen) for codegen in codegens ]
     if modules & OPTIM:
-        for optimum in optimums:
-            cprint(optimum, 'cyan') 
+        for optimod in optimods:
+            cprint(optimod, 'cyan') 
     modules -= OPTIM
+    if not modules:
+        return
+
+    # code execution
+    results = [ executer.exec(optimod) for optimod in optimods ]
+    if modules & EXEC:
+        for result in results:
+            cprint(result, 'green') 
+    modules -= EXEC
     if not modules:
         return
 
@@ -100,7 +110,7 @@ def run():
             repl(modules)    
 
     else:
-        repl(OPTIM)    
+        repl(EXEC)    
 
 
 if __name__ == '__main__':
