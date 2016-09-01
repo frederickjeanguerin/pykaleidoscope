@@ -110,10 +110,10 @@ def _gen_number(number, builder):
         # Integer
         if re.match(r"^[0-9]*$", number.text):
             value = int(number.text)
-            if -2**32 <= value <= 2**32:
-                return KResult(I32(value), I32, number)
+            if -2**(INT_SIZE-1) < value < 2**(INT_SIZE-1):
+                return KResult(INT(value), INT, number)
             else:
-                _raise(number, "Integer too big to fit in 32 bits")
+                _raise(number, "Integer too big to fit in only {} bits".format(INT_SIZE))
 
         # Floating point    
         return KResult(F64(float(number.text)), F64, number)
@@ -128,7 +128,7 @@ def _cast(result, expected_type, builder):
         return result
 
     # If promotion possible, make it    
-    if result.type == I32 and expected_type == F64:
+    if result.type == INT and expected_type == F64:
         return KResult(builder.sitofp(result.value, F64), F64, result.seq)
     
     # Otherwise : ERROR        

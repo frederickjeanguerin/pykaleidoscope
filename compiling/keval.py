@@ -5,7 +5,7 @@ from parsing.parser import *
 
 def eval_mod(mod, ret_type):
     result = exec(mod)
-    if (ret_type == I32):
+    if (ret_type == INT):
         result = int(result)
     else:
         assert ret_type == F64        

@@ -2,7 +2,9 @@ import llvmlite.ir as ir
 
 F64 = ir.DoubleType()
 
-I32 = ir.IntType(32)
+INT_SIZE = 32
+
+INT = ir.IntType(INT_SIZE)
 
 LLVM_OPS = {
 
@@ -14,24 +16,24 @@ LLVM_OPS = {
     "frem" : ( ir.IRBuilder.frem, F64, F64, F64 ),
 
     # Integers
-    "shl"  : ( ir.IRBuilder.shl, I32, I32, I32),
-    "lshr"  : ( ir.IRBuilder.lshr, I32, I32, I32),
-    "ashr"  : ( ir.IRBuilder.ashr, I32, I32, I32),
-    "add"  : ( ir.IRBuilder.add, I32, I32, I32),
-    "sub"  : ( ir.IRBuilder.sub, I32, I32, I32),
-    "mul"  : ( ir.IRBuilder.mul, I32, I32, I32),
-    "sdiv"  : ( ir.IRBuilder.sdiv, I32, I32, I32),
-    "udiv"  : ( ir.IRBuilder.udiv, I32, I32, I32),
-    "srem"  : ( ir.IRBuilder.srem, I32, I32, I32),
-    "urem"  : ( ir.IRBuilder.urem, I32, I32, I32),
-    "and"  : ( ir.IRBuilder.and_, I32, I32, I32),
-    "or"  : ( ir.IRBuilder.or_, I32, I32, I32),
-    "xor"  : ( ir.IRBuilder.xor, I32, I32, I32),
-    "not"  : ( ir.IRBuilder.not_, I32, I32),
-    "neg"  : ( ir.IRBuilder.neg, I32, I32),
+    "shl"  : ( ir.IRBuilder.shl, INT, INT, INT),
+    "lshr"  : ( ir.IRBuilder.lshr, INT, INT, INT),
+    "ashr"  : ( ir.IRBuilder.ashr, INT, INT, INT),
+    "add"  : ( ir.IRBuilder.add, INT, INT, INT),
+    "sub"  : ( ir.IRBuilder.sub, INT, INT, INT),
+    "mul"  : ( ir.IRBuilder.mul, INT, INT, INT),
+    "sdiv"  : ( ir.IRBuilder.sdiv, INT, INT, INT),
+    "udiv"  : ( ir.IRBuilder.udiv, INT, INT, INT),
+    "srem"  : ( ir.IRBuilder.srem, INT, INT, INT),
+    "urem"  : ( ir.IRBuilder.urem, INT, INT, INT),
+    "and"  : ( ir.IRBuilder.and_, INT, INT, INT),
+    "or"  : ( ir.IRBuilder.or_, INT, INT, INT),
+    "xor"  : ( ir.IRBuilder.xor, INT, INT, INT),
+    "not"  : ( ir.IRBuilder.not_, INT, INT),
+    "neg"  : ( ir.IRBuilder.neg, INT, INT),
 
     # Conversion
     "fptosi"  : ( lambda builder, val, name : 
-        ir.IRBuilder.fptosi(builder, val, I32, name), I32, F64),
+        ir.IRBuilder.fptosi(builder, val, INT, name), INT, F64),
     
 }
