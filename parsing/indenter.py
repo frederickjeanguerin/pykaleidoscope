@@ -12,6 +12,10 @@ class IndentError(CodeError):
 
 class SourceMixin:
 
+    """ Can be mixed in with any class providing 
+        first_token and last_token properties.
+    """
+
     def match(self, attribute):
         if isinstance(attribute, type):
             return isinstance(self, attribute)
