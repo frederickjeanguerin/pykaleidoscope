@@ -59,15 +59,18 @@ def check_expr(exprstr):
     assert len(call_trees) == 1
     return call_trees[0]
 
+
 def check_code(codestr):
     """ Check the code expression, returning the associated call trees
         of all expression found in the code.
     """
     return tuple(kcalls_gen(codestr))
 
+
 def kcalls_gen(codestr):
     """ Generator to retreive all call trees from codestr. """
     return (check_seq(seq) for seq in seqs_gen(codestr))
+
 
 def check_seq(seq):
     """ Generate a calltree for the code in seq.

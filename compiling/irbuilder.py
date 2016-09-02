@@ -10,7 +10,7 @@ class IrResult(SeqMixin, namedtuple("_IrResult", "irval type seq calleeseq")):
 
 
 def _kcall_to_ir(kcall, builder):
-    irargs = [arg.to_ir(builder).irval for arg in kcall.args]
+    irargs = (arg.to_ir(builder).irval for arg in kcall.args)
     llvm_op = kcall.fun
     return IrResult(llvm_op.gen_fun(builder, *irargs, llvm_op.name),
         kcall.type, kcall.seq, kcall.calleeseq)        
