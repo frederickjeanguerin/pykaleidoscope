@@ -1,3 +1,4 @@
+from collections import namedtuple 
 import llvmlite.ir as ir
 
 F64 = ir.DoubleType()
@@ -6,34 +7,36 @@ INT_SIZE = 32
 
 INT = ir.IntType(INT_SIZE)
 
+LlvmOp = namedtuple('LlvmOp', 'ret_type arg_types gen_fun')
+
 LLVM_OPS = {
 
     # Floating point
-    "fadd" : ( ir.IRBuilder.fadd, F64, F64, F64 ),
-    "fmul" : ( ir.IRBuilder.fmul, F64, F64, F64 ),
-    "fsub" : ( ir.IRBuilder.fsub, F64, F64, F64 ),
-    "fdiv" : ( ir.IRBuilder.fdiv, F64, F64, F64 ),
-    "frem" : ( ir.IRBuilder.frem, F64, F64, F64 ),
+    "fadd" : LlvmOp( F64, (F64, F64) , ir.IRBuilder.fadd),
+    "fmul" : LlvmOp( F64, (F64, F64) , ir.IRBuilder.fmul),
+    "fsub" : LlvmOp( F64, (F64, F64) , ir.IRBuilder.fsub),
+    "fdiv" : LlvmOp( F64, (F64, F64) , ir.IRBuilder.fdiv),
+    "frem" : LlvmOp( F64, (F64, F64) , ir.IRBuilder.frem),
 
     # Integers
-    "shl"  : ( ir.IRBuilder.shl, INT, INT, INT),
-    "lshr"  : ( ir.IRBuilder.lshr, INT, INT, INT),
-    "ashr"  : ( ir.IRBuilder.ashr, INT, INT, INT),
-    "add"  : ( ir.IRBuilder.add, INT, INT, INT),
-    "sub"  : ( ir.IRBuilder.sub, INT, INT, INT),
-    "mul"  : ( ir.IRBuilder.mul, INT, INT, INT),
-    "sdiv"  : ( ir.IRBuilder.sdiv, INT, INT, INT),
-    "udiv"  : ( ir.IRBuilder.udiv, INT, INT, INT),
-    "srem"  : ( ir.IRBuilder.srem, INT, INT, INT),
-    "urem"  : ( ir.IRBuilder.urem, INT, INT, INT),
-    "and"  : ( ir.IRBuilder.and_, INT, INT, INT),
-    "or"  : ( ir.IRBuilder.or_, INT, INT, INT),
-    "xor"  : ( ir.IRBuilder.xor, INT, INT, INT),
-    "not"  : ( ir.IRBuilder.not_, INT, INT),
-    "neg"  : ( ir.IRBuilder.neg, INT, INT),
+    "shl"  : LlvmOp( INT, (INT, INT) , ir.IRBuilder.shl),
+    "lshr" : LlvmOp( INT, (INT, INT) , ir.IRBuilder.lshr),
+    "ashr" : LlvmOp( INT, (INT, INT) , ir.IRBuilder.ashr),
+    "add"  : LlvmOp( INT, (INT, INT) , ir.IRBuilder.add),
+    "sub"  : LlvmOp( INT, (INT, INT) , ir.IRBuilder.sub),
+    "mul"  : LlvmOp( INT, (INT, INT) , ir.IRBuilder.mul),
+    "sdiv" : LlvmOp( INT, (INT, INT) , ir.IRBuilder.sdiv),
+    "udiv" : LlvmOp( INT, (INT, INT) , ir.IRBuilder.udiv),
+    "srem" : LlvmOp( INT, (INT, INT) , ir.IRBuilder.srem),
+    "urem" : LlvmOp( INT, (INT, INT) , ir.IRBuilder.urem),
+    "and"  : LlvmOp( INT, (INT, INT) , ir.IRBuilder.and_),
+    "or"   : LlvmOp( INT, (INT, INT) , ir.IRBuilder.or_),
+    "xor"  : LlvmOp( INT, (INT, INT) , ir.IRBuilder.xor),
+    "not"  : LlvmOp( INT, (INT,) , ir.IRBuilder.not_),
+    "neg"  : LlvmOp( INT, (INT,) , ir.IRBuilder.neg),
 
     # Conversion
-    "fptosi"  : ( lambda builder, val, name : 
-        ir.IRBuilder.fptosi(builder, val, INT, name), INT, F64),
-    
+    "fptosi" : LlvmOp( INT, (F64,) , 
+        lambda builder, val, name : 
+            ir.IRBuilder.fptosi(builder, val, INT, name)),   
 }

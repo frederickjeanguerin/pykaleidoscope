@@ -88,23 +88,24 @@ def _gen_seq(seq, builder):
         _raise(callee, "Llvm identifier expected for callee")
 
     # Get requested llvm operation     
-    llvm_op_info = LLVM_OPS.get(callee.llvm_op)
-    if not llvm_op_info:
+    llvm_op = LLVM_OPS.get(callee.llvm_opname)
+    if not llvm_op:
         _raise(callee, "Unsupported or undefined LLVM operation")
-    llvm_fun, ret_type, *arg_types = llvm_op_info
 
-    # Verify that the correct number of arguments are passed in    
-    if not seq.len == len(arg_types)+1:
+    # Verify that the correct number of arguments are passed in
+    expected_num_of_args = len(llvm_op.arg_types)
+    received_num_of_args = seq.len - 1     
+    if not received_num_of_args == expected_num_of_args:
         _raise(callee, 
-            "({}) arguments expected but ({}) given for callee".format(len(arg_types), seq.len - 1))    
+            "({}) arguments expected but ({}) given for callee".format(expected_num_of_args, received_num_of_args))    
 
     # Compute arguments
     rawargs = (_gen_seq(arg, builder) for arg in seq.items[1:])
     # Cast arguments to expected types    
-    args = [_cast(rawarg, arg_types[i], builder).value for i, rawarg in enumerate(rawargs)]    
+    args = [_cast(rawarg, llvm_op.arg_types[i], builder).value for i, rawarg in enumerate(rawargs)]    
 
     # Compute the function call and return that value
-    return KResult(llvm_fun(builder, *args, callee.llvm_op), ret_type, callee)
+    return KResult(llvm_op.gen_fun(builder, *args, callee.llvm_opname), llvm_op.ret_type, callee)
 
 def _gen_number(number, builder):
     """Converts a float string value into an IR double constant value"""

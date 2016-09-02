@@ -117,6 +117,6 @@ class LlvmIdentifier(Identifier):
     ''' An identifier referring to an LLVM operation. 
     '''
     @property
-    def llvm_op(self):
+    def llvm_opname(self):
         return self.text[1:]
 
