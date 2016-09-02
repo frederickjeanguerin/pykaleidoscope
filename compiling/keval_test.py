@@ -3,7 +3,7 @@ from pytest import raises
 from .keval import *
 
 def _error(codestr, colno):
-    with raises(CodegenError) as err:
+    with raises(SemanticError) as err:
         eval(codestr)
     assert err.value.target.colno == colno    
 
@@ -58,17 +58,4 @@ def test_conversion():
     _error("%add 1.0 2.0", 6)
     assert eval("%add (%fptosi 1.0) 2") == 3    
 
-def test_error():
-
-    _error("a", 1)
-    _error("0.0.0", 1)
-    _error("()", 1)
-    _error("(2)", 2)
-    _error("0 0", 1)
-    _error("a 0", 1)
-    _error("a 0 0", 1)
-    _error("%fx 0 0", 1)
-    _error("%fadd 0", 1)
-    _error("%fadd", 1)
-    _error("%fadd 0 1 2", 1)
     

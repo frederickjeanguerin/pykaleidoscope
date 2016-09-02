@@ -4,7 +4,7 @@ import re
 from parsing.parser import *
 from .constants import *
 
-class KCallMixin (SourceMixin):
+class SeqMixin (SourceMixin):
 
     @property
     def first_token(self):
@@ -13,9 +13,9 @@ class KCallMixin (SourceMixin):
     @property
     def last_token(self):
         return self.seq.last_token
-        
 
-class KCall (KCallMixin, namedtuple("_KCall", "fun args type seq calleeseq")):
+
+class KCall (SeqMixin, namedtuple("_KCall", "fun args type seq calleeseq")):
 
     def __init__(self, fun, args, type, seq, calleeseq):
         pass
@@ -24,13 +24,14 @@ class KCall (KCallMixin, namedtuple("_KCall", "fun args type seq calleeseq")):
         return "(" + self.fun.name + " "  + " ".join((arg.to_code() for arg in self.args)) + ")"
 
 
-class KVal (KCallMixin, namedtuple("Kval", "val type seq")):
+class KVal (SeqMixin, namedtuple("Kval", "val type seq")):
 
     def __init__(self, val, type, seq):
         pass
 
     def to_code(self):
         return str(self.val)
+
 
 
 class SemanticError(CodeError):
@@ -121,7 +122,7 @@ def _chk_funcall(seq, callee, args):
             "({}) arguments expected but ({}) given for callee".format(len(expected_types), len(args)))    
 
     # Check the arguments and their types    
-    chkedargs = tuple((_chk_type(_chk_seq(arg), expected_types[i]) for i, arg in enumerate(args)))    
+    chkedargs = tuple((check_type(_chk_seq(arg), expected_types[i]) for i, arg in enumerate(args)))    
 
     # Return the function call
     return KCall(llvm_op, chkedargs, llvm_op.ret_type, seq, callee)
@@ -153,7 +154,7 @@ def _chk_number(number):
         _raise(number, "Invalid number format")    
 
 
-def _chk_type(arg, expected_type):
+def check_type(arg, expected_type):
     # If same type, just return the result
     if arg.type == expected_type:
         return arg

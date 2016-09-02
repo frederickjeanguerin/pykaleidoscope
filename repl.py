@@ -9,18 +9,19 @@ colorama.init()
 from code_error import *
 from lexing import lexer
 from parsing import indenter, parser, seq
-from compiling import ircoder, optimizer, keval
+from compiling import semchecker, irbuilder, optimizer, keval
 
 LEX     = {"lex", "lexer"}
 INDENT  = {"indent", "indenter"}
 PARSE   = {"parse", "parser"}
+CHECK   = {"chk", "check", "sem"}
 IR      = {"ir", "codegen"}
 OPTIM   = {"optim", "optimize"}
 EXEC    = {"exec", "run"}
 DEBUG   = {"debug"}
 
 OPTIONS = DEBUG
-MODULES = LEX | INDENT | PARSE | IR | OPTIM | EXEC
+MODULES = LEX | INDENT | PARSE | CHECK | IR | OPTIM | EXEC
 ALL = OPTIONS | MODULES 
 
 def eval(codestr, modules):
@@ -53,8 +54,17 @@ def eval(codestr, modules):
     if not modules:
         return
 
+    # Checking
+    kcalls = [ semchecker.check_seq(seq) for seq in seqs ]
+    if modules & CHECK:
+        for kcall in kcalls:
+            cprint(kcall.to_code(), 'green') 
+    modules -= CHECK
+    if not modules:
+        return
+
     # ir codegen
-    codegens = [ ircoder.ir_from(seq) for seq in seqs ]
+    codegens = [ irbuilder.ir_from(kcall) for kcall in kcalls ]
     if modules & IR:
         for codegen in codegens:
             cprint(codegen.module, 'magenta') 
@@ -63,7 +73,7 @@ def eval(codestr, modules):
         return
 
     # ir optimization
-    optimods = [ ircoder.IrResult(optimizer.optimize(codegen.module), codegen.type) for codegen in codegens ]
+    optimods = [ irbuilder.IrModuleResult(optimizer.optimize(codegen.module), codegen.type) for codegen in codegens ]
     if modules & OPTIM:
         for optimod in optimods:
             cprint(optimod.module, 'cyan') 

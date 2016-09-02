@@ -1,6 +1,6 @@
 from .executer import exec
 from .optimizer import optimize
-from .ircoder import *
+from .irbuilder import *
 from parsing.parser import *
 
 def eval_mod(mod, ret_type):
@@ -14,12 +14,12 @@ def eval_mod(mod, ret_type):
 def eval(codestr):
     """ Evals a single instruction in the current context
         Raises an error if more than one statement is present"""
-    module, ret_type = ir_from(parse(codestr))    
+    module, ret_type = ir_from(check_expr(codestr))    
     return eval_mod(optimize(module), ret_type)
 
 def evals_gen(codestr):
     """Yield results for every statement in codestr"""
-    for seq in seqs_gen(codestr):
-        module, ret_type = ir_from(seq)    
+    for kcall in kcalls_gen(codestr):
+        module, ret_type = ir_from(kcall)    
         yield eval_mod(optimize(module), ret_type)
                     
