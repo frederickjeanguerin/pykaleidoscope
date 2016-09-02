@@ -63,6 +63,7 @@ def test_error():
     _error("a", 1)
     _error("0.0.0", 1)
     _error("()", 1)
+    _error("(2)", 2)
     _error("0 0", 1)
     _error("a 0", 1)
     _error("a 0 0", 1)

@@ -74,7 +74,10 @@ def _gen_seq(seq, builder):
     # if there is just one element in the sequence, 
     # return the value of that element    
     if seq.len == 1:
-        return _gen_seq(seq.items[0], builder)
+        content = seq.items[0]
+        if seq.first_token.match('(') and content.match(Token):
+            _raise(content, "Element does not need to be enclosed in parenthesis")
+        return _gen_seq(content, builder)
 
     # Otherwise the seq is a function call 
     # with callee first    
