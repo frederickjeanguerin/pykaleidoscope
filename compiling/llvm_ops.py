@@ -1,15 +1,10 @@
-from collections import namedtuple 
-import llvmlite.ir as ir
+from collections import namedtuple
 
-F64 = ir.DoubleType()
-
-INT_SIZE = 32
-
-INT = ir.IntType(INT_SIZE)
+from .types import *
 
 LlvmOp = namedtuple('LlvmOp', 'name ret_type arg_types gen_fun')
 
-LLVM_OPS_DATA = {
+_LLVM_OPS_DATA = {
 
     # Floating point
     "fadd" : ( F64, (F64, F64) , ir.IRBuilder.fadd),
@@ -50,7 +45,5 @@ def _init_llvm_ops(data):
         llvm_ops[key] = LlvmOp('%' + key, *value)
     return llvm_ops    
 
-LLVM_OPS = _init_llvm_ops(LLVM_OPS_DATA)
-
-INT_TO_F64_OP = LLVM_OPS['sitofp']
+LLVM_OPS = _init_llvm_ops(_LLVM_OPS_DATA)
 

@@ -1,6 +1,7 @@
 from collections import namedtuple
 from lexing.lexer import *
 from code_error import *
+from .source_mixin import *
 
 class IndentError(CodeError): 
 
@@ -8,45 +9,6 @@ class IndentError(CodeError):
         self.line = line
         self.refline = refline
         self.msg = msg 
-
-
-class SourceMixin:
-
-    """ Can be mixed in with any class providing 
-        first_token and last_token properties.
-    """
-
-    def match(self, attribute):
-        if isinstance(attribute, type):
-            return isinstance(self, attribute)
-        return False   
-
-    @property     
-    def pos(self):
-        return self.first_token.pos
-
-    @property     
-    def endpos(self):
-        return self.last_token.endpos             
-
-    @property
-    def source(self):
-        return self.first_token.source    
-
-    @property
-    def text(self):
-        return self.source[self.pos:self.endpos]
-
-    @property
-    def lineno(self):
-        return self.first_token.lineno    
-
-    @property
-    def colno(self):
-        return self.first_token.colno    
-
-    def __str__(self):
-        return "[{}] at {}:{}".format(self.text, self.lineno, self.colno)        
 
 
 class Block(SourceMixin, namedtuple('_Indent', 'stmts')):

@@ -26,8 +26,8 @@ setattr(KVal, 'to_ir', _kval_to_ir)
 
 IrModuleResult = namedtuple("_IrModuleResult", "module type")
 
-def ir_from(kcall):
-    """ Generate an IR of the code in the call tree kcall.
+def ir_from(tree):
+    """ Generate an IR of the code in the call tree.
         Returns a (module, return_type) with 
         a "main" function having that code.
     """
@@ -43,16 +43,16 @@ def ir_from(kcall):
     bb_entry = func.append_basic_block('entry')
     builder = ir.IRBuilder(bb_entry)    
 
-    # Convert kcall to a F64 before returning from the fun
-    f64call = check_type(kcall, F64)
+    # Convert tree to a F64 before returning from the fun
+    f64tree = check_type(tree, F64)
 
     # Generate IR code 
-    result = f64call.to_ir(builder)
+    result = f64tree.to_ir(builder)
 
     # And make the main function return that value
     builder.ret(result.irval)
 
-    return IrModuleResult(module, kcall.type)
+    return IrModuleResult(module, tree.type)
 
 
 

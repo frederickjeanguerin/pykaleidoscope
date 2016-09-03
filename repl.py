@@ -55,16 +55,16 @@ def eval(codestr, modules):
         return
 
     # Checking
-    kcalls = [ semchecker.check_seq(seq) for seq in seqs ]
+    trees = [ semchecker.check_seq(seq) for seq in seqs ]
     if modules & CHECK:
-        for kcall in kcalls:
-            cprint(kcall.to_code(), 'green') 
+        for tree in trees:
+            cprint(tree.to_code(), 'green') 
     modules -= CHECK
     if not modules:
         return
 
     # ir codegen
-    codegens = [ irbuilder.ir_from(kcall) for kcall in kcalls ]
+    codegens = [ irbuilder.ir_from(tree) for tree in trees ]
     if modules & IR:
         for codegen in codegens:
             cprint(codegen.module, 'magenta') 

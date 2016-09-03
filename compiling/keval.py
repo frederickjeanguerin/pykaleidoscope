@@ -19,7 +19,7 @@ def eval(codestr):
 
 def evals_gen(codestr):
     """Yield results for every statement in codestr"""
-    for kcall in kcalls_gen(codestr):
-        module, ret_type = ir_from(kcall)    
+    for tree in trees_gen(codestr):
+        module, ret_type = ir_from(tree)    
         yield eval_mod(optimize(module), ret_type)
                     

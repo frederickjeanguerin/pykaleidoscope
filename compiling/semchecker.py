@@ -1,37 +1,9 @@
-from collections import namedtuple
+
 import re
 
 from parsing.parser import *
-from .constants import *
-
-class SeqMixin (SourceMixin):
-
-    @property
-    def first_token(self):
-        return self.seq.first_token
-
-    @property
-    def last_token(self):
-        return self.seq.last_token
-
-
-class KCall (SeqMixin, namedtuple("_KCall", "fun args type seq calleeseq")):
-
-    def __init__(self, fun, args, type, seq, calleeseq):
-        pass
-
-    def to_code(self):
-        return "(" + self.fun.name + " "  + " ".join((arg.to_code() for arg in self.args)) + ")"
-
-
-class KVal (SeqMixin, namedtuple("Kval", "val type seq")):
-
-    def __init__(self, val, type, seq):
-        pass
-
-    def to_code(self):
-        return str(self.val)
-
+from .kcall import *
+from .llvm_ops import *
 
 
 class SemanticError(CodeError):
@@ -64,10 +36,10 @@ def check_code(codestr):
     """ Check the code expression, returning the associated call trees
         of all expression found in the code.
     """
-    return tuple(kcalls_gen(codestr))
+    return tuple(trees_gen(codestr))
 
 
-def kcalls_gen(codestr):
+def trees_gen(codestr):
     """ Generator to retreive all call trees from codestr. """
     return (check_seq(seq) for seq in seqs_gen(codestr))
 
@@ -157,16 +129,23 @@ def _chk_number(number):
         _raise(number, "Invalid number format")    
 
 
-def check_type(arg, expected_type):
+def check_type(tree, expected_type):
+    """ Check expr type against the expected type. 
+        If the same, return the arg.
+        If different, try a non lossy conversion.
+        Otherwise, raise a type mismatch error.
+    """
+    assert tree.match(KTree)
+
     # If same type, just return the result
-    if arg.type == expected_type:
-        return arg
+    if tree.type == expected_type:
+        return tree
 
     # If a safe conversion (or promotion) is possible, make it    
-    if arg.type == INT and expected_type == F64:
-        return KCall(INT_TO_F64_OP, (arg,), F64, arg.seq, arg.seq)
+    if tree.type == INT and expected_type == F64:
+        return KCall(LLVM_OPS['sitofp'], (tree,), F64, tree.seq, tree.seq)
     
     # Otherwise : ERROR        
-    _raise(arg.seq, "Type mismatch error, expecting {} but got {} for".format(expected_type, arg.type))
+    _raise(tree.seq, "Type mismatch error, expecting {} but got {} for".format(expected_type, tree.type))
 
 

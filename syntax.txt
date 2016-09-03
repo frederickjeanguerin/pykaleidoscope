@@ -19,6 +19,12 @@ print_ 34
 
 8 (minus) 9
 
+9 -plus- 9
+
+9 -minus- 9
+
+
+
 let a be 8 (minus) 9
 
 let a be 8 -minus- 9
@@ -27,3 +33,4 @@ let a be 8 -minus- 9
 
 3 (%fadd) 4
 
+def +(Int1 Int2) as 
