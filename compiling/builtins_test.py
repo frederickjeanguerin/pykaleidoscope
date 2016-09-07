@@ -12,8 +12,8 @@ def test_builtins():
     assert sym == None
     assert add in alternatives and fadd in alternatives
 
-    import pdb
-    pdb.set_trace()
+    # import pdb
+    # pdb.set_trace()
 
     SYMTAB.remove(add)
     SYMTAB.remove(fadd)

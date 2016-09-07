@@ -58,4 +58,20 @@ def test_conversion():
     _error("%add 1.0 2.0", 6)
     assert eval("%add (%fptosi 1.0) 2") == 3    
 
-    
+def test_more_integer_artihmetics():
+    assert eval("add 2 1") == 3
+    assert eval("add 2.25 1.25") == 3.5
+    assert eval("sub 2 1") == 1
+    assert eval("sub 2.25 1.25") == 1.0
+    assert eval("mul 2 3") == 6
+    assert eval("mul 2.5 3.0") == 7.5
+
+def test_more_conversions():
+    # explicit
+    assert eval("i32 3") == 3
+    assert eval("i32 3.4") == 3
+    assert eval("f64 3.4") == 3.4
+    assert eval("f64 3") == 3.0
+
+
+        

@@ -26,6 +26,7 @@ def test_chk_number():
 
 def test_call_llvm_op():
 
+
     _assert("%fadd 1.0 2.0")
     _assert("%fadd (%fadd 1.0 2.0) (%fadd 3.0 (%fadd 4.0 5.0))")
 
@@ -45,6 +46,16 @@ def test_conversion():
     # automatic conversion from int to float
     _assert("%fadd 1 2", "%fadd (%sitofp 1) (%sitofp 2)" )
 
+
+def test_basicop():
+    _assert("add 1 2", "%add 1 2")
+    _assert("add 1.1 2.2", "%fadd 1.1 2.2")
+
+def test_identity_passthrough():
+    _assert("i32 1", "1")
+    _assert("i32 1.1", "%fptosi 1.1")
+    _assert("f64 1.1", "1.1")
+    _assert("f64 1", "%sitofp 1")
 
 def test_error():
 

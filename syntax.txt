@@ -23,7 +23,27 @@ print_ 34
 
 9 -minus- 9
 
+def x 80
+def f(x) x + 100
+f(x): x + 100
 
+f(x) = x + 100
+
+if a = 100 -and- b = 200 
+    print "allo"
+
+if a = 100 AND b = 200 
+    print "allo"
+
+if a = 100 (and) b = 200 
+    print "allo"
+
+if  a = 100  -and-  b = 200 
+    print "allo"
+
+f: x -> x + 100
+
+lambda x x + 100
 
 let a be 8 (minus) 9
 
@@ -34,3 +54,56 @@ let a be 8 -minus- 9
 3 (%fadd) 4
 
 def +(Int1 Int2) as 
+
+noun.def
+
+def(noun)
+
+def(other)
+
+x' = 100
+f(x)' = x + 100
+f(x') = 100 
+
+def x' 100
+mac stop(x)'
+
+x = 100
+
+def x' 100
+
+x' + 100 = 200
+
+def (x' + y <- z) 
+
+f(a, b)' = bla bla bla
+
+f(a) = b
+
+f'(x) = 
+
+x' = int(y)
+
+int x' = 100
+
+x' = int(100)
+
+x' + 100 = 200
+
+neg x' = 100
+
+x'
+
+x' : int
+
+fib(1) : 1
+fib(2) : 1
+fib(n) : fib(n - 1) + fib(n - 2)  
+
+
+
+
+
+x' = f(x)'  
+
+module.def

@@ -3,26 +3,6 @@ import re
 
 from .semchecker import *
 
-class IrResult(SeqMixin, namedtuple("_IrResult", "irval type seq calleeseq")):
-
-    def __init__(self, irval, type, seq, calleeseq):
-        pass
-
-
-def _kcall_to_ir(kcall, builder):
-    irargs = (arg.to_ir(builder).irval for arg in kcall.args)
-    llvm_op = kcall.fun
-    return IrResult(llvm_op.gen_fun(builder, *irargs, llvm_op.name),
-        kcall.type, kcall.seq, kcall.calleeseq)        
-
-
-def _kval_to_ir(kval, builder):
-    return IrResult(kval.type(kval.val), kval.type, kval.seq, kval.seq)
-    
-
-setattr(KCall, 'to_ir', _kcall_to_ir)
-setattr(KVal, 'to_ir', _kval_to_ir)
-
 
 IrModuleResult = namedtuple("_IrModuleResult", "module type")
 

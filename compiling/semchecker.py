@@ -4,7 +4,7 @@ import re
 from parsing.parser import *
 from .ktree import *
 from .llvm_ops import *
-
+from .builtins import *
 
 class SemanticError(CodeError):
 
@@ -79,11 +79,40 @@ def _chk_seq(seq):
         return _chk_funcall(seq, seq.items[0], seq.items[1:])    
 
 
+def _signature(arg_types):
+    return "(" + " ".join((str(typ) for typ in arg_types)) + ")"
+
 def _chk_funcall(seq, callee, args):
 
-    # At this moment, only builtin llvm operations are permitted    
-    if not callee.match(LlvmIdentifier):
-        _raise(callee, "Llvm identifier expected for callee")
+    # If llvm operations    
+    if callee.match(LlvmIdentifier):
+        return _chk_llvmopcall(seq, callee, args)
+
+    # Check arguments
+    treed_args = [_chk_seq(arg) for arg in args]
+    received_argtypes = [arg.type for arg in treed_args]    
+
+    # Get requested fun      
+    sym, alt = SYMTAB.find(callee.text, *received_argtypes)
+    if not sym:
+        if not alt:
+            _raise(callee, "Undefined identifier")
+        else:
+            _raise(callee, "Could not find a match for argument types {}. Available options are {} when calling".format(
+                _signature(received_argtypes),
+                " or ".join((_signature(sym.arg_types) for sym in alt)) 
+            ))
+
+    # Cast the arguments and their types    
+    chkedargs = tuple((check_type(arg, sym.arg_types[i]) for i, arg in enumerate(treed_args)))    
+
+    # Return the function call
+    return sym.make_call(chkedargs, seq, callee)
+
+
+def _chk_llvmopcall(seq, callee, args):
+
+    assert callee.match(LlvmIdentifier)
 
     # Get requested llvm operation     
     llvm_op = LLVM_OPS.get(callee.llvm_opname)
