@@ -5,7 +5,7 @@ class SymbolTable():
         self.table = dict()
 
 
-    def find(self, name, arg_types = tuple(), aliases = dict()):
+    def find(self, name, arg_types = tuple(), aliases = dict(), automatic_promotions = dict()):
         """ Tries to find the given symbol given its name and arg_types
             
             On success, return (symbol, None)

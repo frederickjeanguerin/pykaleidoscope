@@ -33,10 +33,10 @@ _LLVM_OPS_DATA = {
     # Conversion
     "fptosi" : ( INT, (F64,) , 
         lambda builder, val, name : 
-            ir.IRBuilder.fptosi(builder, val, INT, name)),   
+            ir.IRBuilder.fptosi(builder, val, INT.irtype, name)),   
     "sitofp" : ( F64, (INT,) , 
         lambda builder, val, name : 
-            ir.IRBuilder.sitofp(builder, val, F64, name)),   
+            ir.IRBuilder.sitofp(builder, val, F64.irtype, name)),   
 }
 
 def _init_llvm_ops(data):

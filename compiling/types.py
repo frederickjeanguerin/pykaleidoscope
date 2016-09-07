@@ -1,8 +1,18 @@
+from collections import namedtuple
+
 import llvmlite.ir as ir
 
-F64 = ir.DoubleType()
+class KType(namedtuple('_KType', 'irtype')):
+    def __init__(self, irtype):
+        pass
+
+    def __hash__(self):
+        return str(self.irtype).__hash__()
+
+F64 = KType(ir.DoubleType())
 
 INT_SIZE = 32
 
-INT = ir.IntType(INT_SIZE)
+INT = KType(ir.IntType(INT_SIZE))
 
+            

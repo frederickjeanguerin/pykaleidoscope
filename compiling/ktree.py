@@ -63,7 +63,7 @@ class KVal (KTree, namedtuple("Kval", "val type seq")):
         return str(self.val)
 
     def build_ir(self, builder):
-        irval = self.type(self.val)
+        irval = self.type.irtype(self.val)
         return irval
     
 

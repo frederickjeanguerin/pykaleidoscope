@@ -16,7 +16,7 @@ def ir_from(tree):
 
     # Create a main(): double function
     funcname = "main"
-    functype = ir.FunctionType(F64, [])
+    functype = ir.FunctionType(F64.irtype, [])
     func = ir.Function(module, functype, funcname)
 
     # Create the entry BB in the function and set a new builder to it.
