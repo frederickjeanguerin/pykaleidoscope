@@ -89,11 +89,12 @@ def _chk_funcall(seq, callee, args):
         return _chk_llvmopcall(seq, callee, args)
 
     # Check arguments
-    treed_args = [_chk_seq(arg) for arg in args]
-    received_argtypes = [arg.type for arg in treed_args]    
+    treed_args = tuple(_chk_seq(arg) for arg in args)
+    received_argtypes = tuple(arg.type for arg in treed_args)    
 
-    # Get requested fun      
-    sym, alt = SYMTAB.find(callee.text, *received_argtypes)
+    # Get requested fun
+          
+    sym, alt = SYMTAB.find(callee.text, received_argtypes, ALIASES)
     if not sym:
         if not alt:
             _raise(callee, "Undefined identifier")

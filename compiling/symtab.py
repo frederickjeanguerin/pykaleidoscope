@@ -5,7 +5,7 @@ class SymbolTable():
         self.table = dict()
 
 
-    def find(self, name, *arg_types):
+    def find(self, name, arg_types = tuple(), aliases = dict()):
         """ Tries to find the given symbol given its name and arg_types
             
             On success, return (symbol, None)
@@ -17,7 +17,13 @@ class SymbolTable():
 
             At the moment, the arg_types must match perfectly. 
         """
+
         symlist = self.table.get(name)
+        if not symlist:
+            # try to find an alias
+            alias = aliases.get(name)
+            if alias:
+                symlist = self.table.get(alias)
         if not symlist:
             return None, None
         for s in reversed(symlist):

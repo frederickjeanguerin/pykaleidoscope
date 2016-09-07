@@ -45,5 +45,6 @@ AUTOMATIC_PROMOTIONS = {
 
 ALIASES = {
     "double": "f64",
+    "float": "f64",
     "int": "i32",
 }

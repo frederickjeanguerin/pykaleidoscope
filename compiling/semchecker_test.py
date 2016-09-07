@@ -57,6 +57,10 @@ def test_identity_passthrough():
     _assert("f64 1.1", "1.1")
     _assert("f64 1", "%sitofp 1")
 
+def test_name_aliasing():
+    _assert("int 1", "1")
+    _assert("float 1.1", "1.1")
+
 def test_error():
 
     _error("a", 1)

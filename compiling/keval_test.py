@@ -73,5 +73,9 @@ def test_more_conversions():
     assert eval("f64 3.4") == 3.4
     assert eval("f64 3") == 3.0
 
+def test_name_aliasing():
+    assert eval("int 3.4") == 3
+    assert eval("double 3") == 3.0
+
 
         

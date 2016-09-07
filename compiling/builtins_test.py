@@ -2,8 +2,8 @@ from .builtins import *
 
 def test_builtins():
 
-    add, alternatives = SYMTAB.find("add", INT, INT)
-    fadd, alternatives = SYMTAB.find("add", F64, F64)
+    add, alternatives = SYMTAB.find("add", (INT, INT))
+    fadd, alternatives = SYMTAB.find("add", (F64, F64))
     assert add.llvmop_name == "add"
     assert fadd.llvmop_name == "fadd"
     sym, alternatives = SYMTAB.find("!@#$%")
@@ -18,14 +18,20 @@ def test_builtins():
     SYMTAB.remove(add)
     SYMTAB.remove(fadd)
 
-    assert SYMTAB.find("add", INT, INT)[0] == None
-    assert SYMTAB.find("add", F64, F64)[0] == None
+    assert SYMTAB.find("add", (INT, INT))[0] == None
+    assert SYMTAB.find("add", (F64, F64))[0] == None
 
     SYMTAB.add(add)
     SYMTAB.add(fadd)
     
-    assert SYMTAB.find("add", INT, INT)[0] == add
-    assert SYMTAB.find("add", F64, F64)[0] == fadd
+    assert SYMTAB.find("add", (INT, INT))[0] == add
+    assert SYMTAB.find("add", (F64, F64))[0] == fadd
 
+
+def test_aliases():
+
+    sym1, alternatives = SYMTAB.find("i32", (F64,), ALIASES)
+    sym2, alternatives = SYMTAB.find("int", (F64,), ALIASES)
+    assert sym1 == sym2
     
     
