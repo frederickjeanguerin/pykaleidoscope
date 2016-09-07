@@ -73,6 +73,10 @@ def test_more_conversions():
     assert eval("f64 3.4") == 3.4
     assert eval("f64 3") == 3.0
 
+    #implicit
+    assert eval("add 3 3.25") == 6.25
+    assert eval("add 3.25 3") == 6.25
+
 def test_name_aliasing():
     assert eval("int 3.4") == 3
     assert eval("double 3") == 3.0

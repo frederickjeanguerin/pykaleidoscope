@@ -30,6 +30,12 @@ class KCall (KTree, namedtuple("_KCall", "fun args type seq calleeseq")):
     def __init__(self, fun, args, type, seq, calleeseq):
         pass
 
+    def __repr__(self):
+        return "call[{}]({}):{}".format(
+            self.fun.name,
+            " ".join((repr(arg) for arg in self.args)), 
+            self.type)    
+
     def to_code(self):
         return "(" + self.fun.name + " "  + " ".join((arg.to_code() for arg in self.args)) + ")"
 
@@ -46,6 +52,9 @@ class KIdentity (KTree, namedtuple("_KCall", "arg type seq calleeseq")):
     def __init__(self, arg, type, seq, calleeseq):
         pass
 
+    def __repr__(self):
+        return "identity({}):{}".format(repr(self.arg), self.type)    
+
     def to_code(self):
         return self.arg.to_code()
 
@@ -58,6 +67,9 @@ class KVal (KTree, namedtuple("Kval", "val type seq")):
 
     def __init__(self, val, type, seq):
         pass
+
+    def __repr__(self):
+        return "val({}):{}".format(self.val, self.type)    
 
     def to_code(self):
         return str(self.val)

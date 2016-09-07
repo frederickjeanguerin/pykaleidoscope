@@ -40,7 +40,7 @@ _add_basic_ops(SYMTAB, _BASICOP_DATA)
 
 
 AUTOMATIC_PROMOTIONS = {
-    (INT, F64): "int",
+    (INT, F64): "f64",
 }
 
 ALIASES = {

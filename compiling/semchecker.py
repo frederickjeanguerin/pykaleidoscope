@@ -89,12 +89,11 @@ def _chk_funcall(seq, callee, args):
         return _chk_llvmopcall(seq, callee, args)
 
     # Check arguments
-    treed_args = tuple(_chk_seq(arg) for arg in args)
-    received_argtypes = tuple(arg.type for arg in treed_args)    
+    checked_args = tuple(_chk_seq(arg) for arg in args)
+    received_argtypes = tuple(arg.type for arg in checked_args)    
 
-    # Get requested fun
-          
-    sym, alt = SYMTAB.find(callee.text, received_argtypes, ALIASES)
+    # Get requested fun          
+    sym, alt = SYMTAB.find(callee.text, received_argtypes, ALIASES, AUTOMATIC_PROMOTIONS)
     if not sym:
         if not alt:
             _raise(callee, "Undefined identifier")
@@ -105,10 +104,10 @@ def _chk_funcall(seq, callee, args):
             ))
 
     # Cast the arguments and their types    
-    chkedargs = tuple((check_type(arg, sym.arg_types[i]) for i, arg in enumerate(treed_args)))    
+    casted_args = tuple((cast_type(arg, sym.arg_types[i]) for i, arg in enumerate(checked_args)))
 
     # Return the function call
-    return sym.make_call(chkedargs, seq, callee)
+    return sym.make_call(casted_args, seq, callee)
 
 
 def _chk_llvmopcall(seq, callee, args):
@@ -127,10 +126,11 @@ def _chk_llvmopcall(seq, callee, args):
             "({}) arguments expected but ({}) given for callee".format(len(expected_types), len(args)))    
 
     # Check the arguments and their types    
-    chkedargs = tuple((check_type(_chk_seq(arg), expected_types[i]) for i, arg in enumerate(args)))    
+    casted_args = tuple((cast_type(_chk_seq(arg), expected_types[i]) for i, arg in enumerate(args)))    
+
 
     # Return the function call
-    return KCall(llvm_op, chkedargs, llvm_op.ret_type, seq, callee)
+    return KCall(llvm_op, casted_args, llvm_op.ret_type, seq, callee)
 
 
 def _chk_token(token):
@@ -159,7 +159,7 @@ def _chk_number(number):
         _raise(number, "Invalid number format")    
 
 
-def check_type(tree, expected_type):
+def cast_type(tree, expected_type):
     """ Check expr type against the expected type. 
         If the same, return the arg.
         If different, try a non lossy conversion.
@@ -171,9 +171,13 @@ def check_type(tree, expected_type):
     if tree.type == expected_type:
         return tree
 
-    # If a safe conversion (or promotion) is possible, make it    
-    if tree.type == INT and expected_type == F64:
-        return KCall(LLVM_OPS['sitofp'], (tree,), F64, tree.seq, tree.seq)
+    # If a safe conversion (or promotion) is possible, make it
+    conversion_op = AUTOMATIC_PROMOTIONS.get((tree.type, expected_type))
+    if conversion_op:
+        # find conversion operation    
+        sym, alt = SYMTAB.find(conversion_op, (tree.type,))
+        assert sym
+        return sym.make_call((tree,), tree.seq, tree.seq)
     
     # Otherwise : ERROR        
     _raise(tree.seq, "Type mismatch error, expecting {} but got {} for".format(expected_type, tree.type))

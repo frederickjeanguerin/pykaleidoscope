@@ -61,6 +61,10 @@ def test_name_aliasing():
     _assert("int 1", "1")
     _assert("float 1.1", "1.1")
 
+def test_more_conversion():
+    _assert("add 1 2.3", "%fadd (%sitofp 1) 2.3")
+    _assert("add 2.3 1", "%fadd 2.3 (%sitofp 1)")
+
 def test_error():
 
     _error("a", 1)

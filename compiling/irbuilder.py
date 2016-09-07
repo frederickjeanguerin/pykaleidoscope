@@ -24,7 +24,7 @@ def ir_from(tree):
     builder = ir.IRBuilder(bb_entry)    
 
     # Convert tree to a F64 before returning from the fun
-    f64tree = check_type(tree, F64)
+    f64tree = cast_type(tree, F64)
 
     # Generate IR code 
     result = f64tree.build_ir(builder)
