@@ -27,10 +27,10 @@ def ir_from(tree):
     f64tree = check_type(tree, F64)
 
     # Generate IR code 
-    result = f64tree.to_ir(builder)
+    result = f64tree.build_ir(builder)
 
     # And make the main function return that value
-    builder.ret(result.irval)
+    builder.ret(result)
 
     return IrModuleResult(module, tree.type)
 

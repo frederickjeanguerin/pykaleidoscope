@@ -18,19 +18,11 @@ class SeqMixin (SourceMixin):
         return self.seq.last_token
 
 
-class IrResult(SeqMixin, namedtuple("_IrResult", "irval type seq calleeseq")):
-    """ Represent an IR LLVM result
-    """
-    def __init__(self, irval, type, seq, calleeseq):
-        pass
-
-
 class KTree(SeqMixin):
     """ Represent a call tree object.
         Such an object is ready for code generation or execution. 
         Common ancestor to KCall and KVal 
     """
-    pass
 
 
 class KCall (KTree, namedtuple("_KCall", "fun args type seq calleeseq")):
@@ -41,12 +33,11 @@ class KCall (KTree, namedtuple("_KCall", "fun args type seq calleeseq")):
     def to_code(self):
         return "(" + self.fun.name + " "  + " ".join((arg.to_code() for arg in self.args)) + ")"
 
-    def to_ir(self, builder):
+    def build_ir(self, builder):
         llvm_op = self.fun
-        irargs = (arg.to_ir(builder).irval for arg in self.args)
-        return IrResult(llvm_op.gen_fun(builder, *irargs, llvm_op.name),
-            self.type, self.seq, self.calleeseq)
-
+        irargs = (arg.build_ir(builder) for arg in self.args)
+        self.irval = llvm_op.gen_fun(builder, *irargs, llvm_op.name)
+        return self.irval
 
 
 class KIdentity (KTree, namedtuple("_KCall", "arg type seq calleeseq")):
@@ -58,8 +49,9 @@ class KIdentity (KTree, namedtuple("_KCall", "arg type seq calleeseq")):
     def to_code(self):
         return self.arg.to_code()
 
-    def to_ir(self, builder):
-        return self.arg.to_ir(builder)
+    def build_ir(self, builder):
+        self.irval = self.arg.build_ir(builder)
+        return self.irval
 
 
 class KVal (KTree, namedtuple("Kval", "val type seq")):
@@ -70,7 +62,8 @@ class KVal (KTree, namedtuple("Kval", "val type seq")):
     def to_code(self):
         return str(self.val)
 
-    def to_ir(self, builder):
-        return IrResult(self.type(self.val), self.type, self.seq, self.seq)
+    def build_ir(self, builder):
+        irval = self.type(self.val)
+        return irval
     
 
